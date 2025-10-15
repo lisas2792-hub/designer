@@ -1,0 +1,897 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: ⚙️  override existing env vars with { override: true }
+[BOOT main] pid: 7796 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1758888362339]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [32m200[0m 6.284 ms - 3002[0m
+[REQ] GET /favicon.ico
+[0mGET /favicon.ico [33m404[0m 3.963 ms - 56[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 244.073 ms - 135[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.909 ms - 43335[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 4.638 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 9.853 ms - 1051[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.661 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.459 ms - 43335[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [32m200[0m 1.588 ms - 43335[0m
+[0mGET /api/me?username=Lisa [32m200[0m 2.084 ms - 91[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.353 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.613 ms - 1051[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.469 ms - 43335[0m
+[0mGET /home.html?username=Lisa [32m200[0m 1.021 ms - 43335[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.844 ms - 91[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 2.525 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 0.890 ms - 1051[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.214 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.440 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.333 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [36m304[0m 0.262 ms - -[0m
+[0mGET /api/me?username=Lisa [32m200[0m 1.410 ms - 91[0m
+[0mGET /api/projects [0m-[0m - ms - -[0m
+[REQ] GET /api/projects
+[0mGET /home.html?username=Lisa [36m304[0m 0.362 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.808 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.599 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.306 ms - 1051[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 1.315 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.031 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [32m200[0m 48.672 ms - 372[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.491 ms - 43540[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.494 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [36m304[0m 0.325 ms - -[0m
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.645 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.116 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 2.675 ms - 1051[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.185 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.407 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.059 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.282 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.366 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.582 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.986 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.912 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.915 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.412 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.453 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 138.430 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.557 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.870 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 37.983 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 40.279 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 38.422 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.209 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.449 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 4.140 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.804 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.548 ms - 43525[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.371 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 41.855 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.442 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.332 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.396 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.377 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.875 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.865 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.474 ms - 43534[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.371 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 152.426 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.406 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.232 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.362 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.942 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.781 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.962 ms - 127[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 38.070 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 0.821 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.472 ms - 43513[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.784 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 46.172 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.010 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.871 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.788 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.134 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.172 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.436 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.546 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.068 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.307 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.413 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.591 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.899 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.781 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.206 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.399 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.933 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.188 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.167 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.343 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.019 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.855 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.362 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 1.171 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.898 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.763 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.213 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.372 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.407 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.752 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.420 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.393 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.935 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.715 ms - -[0m
+[0mGET /login.html [36m304[0m 0.419 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 196.588 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.171 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.330 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.862 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.874 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.775 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.175 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.411 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.152 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.065 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.766 ms - 43538[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.387 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 41.018 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.298 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.869 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.629 ms - 43513[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.393 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 39.092 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.666 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.158 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.447 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.972 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.780 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.920 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.512 ms - 43513[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 1.066 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 151.533 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.894 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.045 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.841 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.889 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.817 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.844 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.856 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.812 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.819 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.884 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.746 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.458 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.202 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.351 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.285 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.370 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.088 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.749 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.786 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.748 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.821 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.753 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.176 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.343 ms - 43503[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.410 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 39.932 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.232 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.228 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.610 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.302 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.861 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.769 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 38.715 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 38.087 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.818 ms - 43791[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.454 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 5.939 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.747 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.379 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.743 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.347 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.789 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.837 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.803 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.837 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.048 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.904 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.983 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.752 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.793 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.749 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.923 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.804 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.777 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.904 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.748 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.831 ms - 127[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.882 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.732 ms - 43503[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.640 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.993 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.786 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.204 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.627 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.054 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.816 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.163 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.409 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.473 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.762 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.190 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.359 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.671 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.020 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.794 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.694 ms - 43796[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.433 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 41.798 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.793 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.164 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.458 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.526 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.840 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.193 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.360 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.745 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.772 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.793 ms - 127[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.492 ms - 43834[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.356 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 167.399 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.334 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.844 ms - 127[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.477 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.492 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 40.628 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.447 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.281 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.331 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.882 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.922 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 0.839 ms - 127[0m
+[0mGET /login.html [36m304[0m 1.942 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 235.602 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.194 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.816 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.319 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.383 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [33m400[0m 1.031 ms - 127[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 43.247 ms - -[0m
+[REQ] PATCH /api/projects/21
+[0mPATCH /api/projects/21 [32m200[0m 20.537 ms - 384[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.474 ms - 1051[0m
+[0mGET /login.html [36m304[0m 1.365 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 2.804 ms - 49277[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 2.213 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.326 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.439 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.341 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.379 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.215 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.527 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.193 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.481 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.434 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.624 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.243 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.382 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 48.243 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.903 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.184 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.526 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 155.405 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.709 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [32m200[0m 53.097 ms - 374[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [32m200[0m 40.050 ms - 374[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 40.700 ms - -[0m
+[REQ] PATCH /api/projects/21
+[0mPATCH /api/projects/21 [32m200[0m 6.457 ms - 384[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 0.984 ms - 1053[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 40.213 ms - -[0m
+[REQ] PATCH /api/projects/21
+[0mPATCH /api/projects/21 [32m200[0m 6.186 ms - 384[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.032 ms - 1053[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.501 ms - 52254[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.418 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 44.893 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.555 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.185 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.492 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.954 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.826 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 40.233 ms - -[0m
+[REQ] POST /api/projects
+[0mPOST /api/projects [32m201[0m 44.660 ms - 342[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 2.298 ms - 1377[0m
+[0mGET /home.html?username=Lisa [32m200[0m 2.437 ms - 52254[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 1.048 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 46.299 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.331 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.196 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.419 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.765 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.848 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 46.002 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.531 ms - 53402[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.466 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 41.173 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.013 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [32m200[0m 16.186 ms - 374[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.229 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.413 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.969 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.468 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.159 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.549 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.940 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.736 ms - -[0m
+[REQ] PATCH /api/projects/24
+[0mPATCH /api/projects/24 [32m200[0m 44.299 ms - 374[0m
+[REQ] PATCH /api/projects/21
+[0mPATCH /api/projects/21 [32m200[0m 48.011 ms - 384[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 151.336 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 1.251 ms - -[0m
+[REQ] PATCH /api/projects/23
+[0mPATCH /api/projects/23 [32m200[0m 7.681 ms - 329[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.222 ms - 1377[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.525 ms - 2719[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.159 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.159 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 235.173 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.164 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.339 ms - 2717[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.415 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.194 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.197 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.159 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.279 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.174 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.256 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.167 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.272 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.267 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.206 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.247 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.188 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.165 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.355 ms - 2860[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.392 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.303 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.379 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.223 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.656 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.268 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.233 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.476 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.360 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.196 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.441 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.662 ms - 59[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.386 ms - 4225[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.738 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.261 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.178 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.349 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.205 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.177 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.519 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.232 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.189 ms - -[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.620 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.247 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.187 ms - -[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.400 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.206 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.183 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.372 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.470 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.384 ms - -[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.355 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.195 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.216 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.504 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.255 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.401 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.169 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.378 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.787 ms - 59[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.231 ms - -[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.470 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.266 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.356 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.493 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.495 ms - 59[0m
+[0mGET /login.html [36m304[0m 0.180 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 232.357 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.167 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.757 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.305 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.730 ms - 60[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.880 ms - 8786[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.393 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.205 ms - 59[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.386 ms - 60[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.221 ms - -[0m
+[REQ] GET /public/home.css
+[0mGET /public/home.css [33m404[0m 0.690 ms - 60[0m
+[REQ] GET /public/home.js
+[0mGET /public/home.js [33m404[0m 0.313 ms - 59[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.456 ms - 53402[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.356 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 44.897 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.623 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 2.504 ms - 53402[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 1.513 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 1.409 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.463 ms - 61[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.457 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.268 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [0m-[0m - ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.377 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.177 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.158 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 1.362 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 1.808 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 42.211 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.023 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.200 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.391 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.963 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.999 ms - -[0m
+[0mGET /login.html [36m304[0m 0.529 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 195.917 ms - 139[0m
+[0mGET /home.html?username=Harrison [32m200[0m 0.571 ms - 53402[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.426 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [32m200[0m 1.276 ms - 92[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.763 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 1.094 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 0.871 ms - -[0m
+[0mGET /login.html [36m304[0m 0.200 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 195.362 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.288 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 2.560 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.192 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.848 ms - -[0m
+[REQ] GET /api/responsible-user/ping
+[responsible-user] /ping hit
+[0mGET /api/responsible-user/ping [32m200[0m 1.457 ms - 11[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.187 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.522 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 142.715 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.700 ms - -[0m
+[0mGET /login.html [36m304[0m 0.231 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 194.238 ms - 139[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.211 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.357 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 1.841 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.810 ms - -[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.184 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.340 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 37.198 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.666 ms - -[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.241 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.398 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 0.824 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.704 ms - -[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.245 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.344 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 0.891 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.739 ms - -[0m
+[0mGET /login.html [36m304[0m 0.198 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 196.144 ms - 139[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.218 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.396 ms - 61[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 0.861 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.768 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [36m304[0m 36.826 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 1.336 ms - 93[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 229.010 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.243 ms - -[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.555 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.912 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.926 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.421 ms - 93[0m
+[0mGET /login.html [36m304[0m 0.254 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 1.265 ms - 93[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 229.161 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.187 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.601 ms - 93[0m
+[REQ] GET /static/js/app.js
+[0mGET /static/js/app.js [33m404[0m 0.419 ms - 61[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 3.071 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.649 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.710 ms - 53359[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 177.561 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.451 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.168 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.103 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.762 ms - -[0m
+[0mGET /login.html [36m304[0m 0.230 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 231.937 ms - 139[0m
+[0mGET /home.html?username=Harrison [32m200[0m 0.398 ms - 53359[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 3.697 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.158 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.479 ms - 93[0m
+[0mGET /login.html [36m304[0m 0.186 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.359 ms - 93[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 230.720 ms - 135[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.229 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.561 ms - 93[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 3.411 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.737 ms - -[0m
+[REQ] GET /api/dev-login?username=Lisa
+[0mGET /api/dev-login?username=Lisa [33m404[0m 0.555 ms - 72[0m
+[REQ] GET /api/dev-login?username=Lisa
+[0mGET /api/dev-login?username=Lisa [33m404[0m 0.664 ms - 72[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 3.056 ms - 77[0m
+[REQ] GET /api/auth/auth-ping
+[0mGET /api/auth/auth-ping [33m404[0m 1.393 ms - 63[0m
+[REQ] GET /api/auth/auth-ping
+[0mGET /api/auth/auth-ping [33m404[0m 0.523 ms - 63[0m
+[REQ] GET /api/auth/auth-ping
+[0mGET /api/auth/auth-ping [33m404[0m 0.496 ms - 63[0m
+[REQ] GET /api/auth/auth-ping
+[0mGET /api/auth/auth-ping [33m404[0m 0.910 ms - 63[0m

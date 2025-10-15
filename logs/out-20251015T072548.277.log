@@ -1,0 +1,18 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[BOOT main] pid: 6964 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760512121273]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mPOST /api/auth/logout [32m200[0m 151.290 ms - 11[0m
+[0mGET /login.html [36m304[0m 1.620 ms - -[0m
+[0mPOST /api/auth/login [32m200[0m 241.131 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.340 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 41.298 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.394 ms - 33[0m
+[0mGET /api/projects [33m401[0m 139.144 ms - 33[0m
+[0mGET /api/projects [33m401[0m 36.925 ms - 33[0m
+[0mGET /api/projects [33m401[0m 35.582 ms - 33[0m
+[0mGET /api/projects [33m401[0m 37.755 ms - 33[0m

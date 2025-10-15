@@ -1,0 +1,8 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[BOOT main] pid: 23416 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760478568198]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅

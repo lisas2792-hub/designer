@@ -22,13 +22,7 @@ const app  = express();
 console.log("[BOOT main] pid:", process.pid, "cwd:", process.cwd());
 
 
-
-
-
-// ❌ 錯誤：這行拿到的是整個 module，而不是 pool 實例
-// const pool = require("./db");
-
-// ✅ 修正：你的 db.js 若是 `module.exports = { pool }`，就要用解構
+//  db.js 若是 `module.exports = { pool }`，就要用解構
 const { pool } = require("./db"); 
 
 const userRouter = require("./routes/user");
@@ -37,6 +31,7 @@ const opsRoutes  = require("./routes/ops");
 const meRoutes   = require("./routes/me");
 const projectsRouter = require("./routes/projects");
 const responsibleUserRoute = require("./routes/responsibleuser");
+const { attachUser, requireAuth, requireAdmin } = require("./middleware/auth");
 
 // CJS (CommonJS)
 // v8 正確匯入
@@ -75,6 +70,8 @@ app.use(helmet({
   },
 }));
 
+// 全域注入身分（之後任何路由都能讀到 req.user）
+app.use(attachUser);
 
 app.use((req, _res, next) => {
   req.db = pool;
@@ -90,6 +87,19 @@ app.use((req, _res, next) => {
 
 
 
+
+
+app.get("/api/debug/auth-headers", (req, res) => {
+  res.json({
+    ok: true,
+    hasUser: !!req.user,
+    user: req.user || null,
+    headers: {
+      authorization: req.headers.authorization || null,
+      cookie: req.headers.cookie || null,
+    },
+  });
+});
 
 
 
@@ -130,10 +140,20 @@ app.get('/__routes', (req, res) => {
 
 
 
+// 0) 看 attachUser 是否真的有把 req.user 還原成功（不需要登入保護）
+app.get('/api/_whoami', (req, res) => {
+  res.json({ ok: true, hasUser: !!req.user, user: req.user || null });
+});
 
-
-
-
+// 1) 臨時放行的專案列表（完全繞過 requireAuth，只用來驗證 SQL）
+app.get('/api/_free/projects', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM project ORDER BY created_at DESC LIMIT 50');
+    res.json({ ok: true, data: rows, count: rows.length });
+  } catch (e) {
+    res.status(500).json({ ok:false, msg: String(e?.message || e) });
+  }
+});
 
 
 
@@ -225,17 +245,22 @@ app.use("/api/auth", authRoutes);
 // 只留 health 或未來的使用者 CRUD
 app.use("/api/users", userRouter);
 
-// 一次性初始化
-app.use("/__ops", opsRoutes);
 
-//會員名稱
-app.use("/api", meRoutes);
+// 管理員專用（受保護）
+app.use("/__ops", requireAdmin, opsRoutes);
 
-// 新增專案時的負責人下拉選單
-app.use("/api/responsible-user", responsibleUserRoute);
+app.use("/api", requireAuth, meRoutes);
 
-// 專案 CRUD(載入 新增 更新 等等)
-app.use("/api", projectsRouter);
+app.use("/api/responsible-user", requireAuth, responsibleUserRoute);
+
+app.use("/api", requireAuth, projectsRouter);
+
+// 其餘登入的 API 集中到這裡（受保護）
+// app.use("/api", requireAuth, [
+//   meRoutes,                 // /api/...（如 /api/auth/me 或 /api/me 之類）
+//   responsibleUserRoute,     // /api/responsible-user/...
+//   projectsRouter,           // /api/projects/...
+// ]);
 
 // 靜態頁面
 app.get("/login.html",  (_req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));

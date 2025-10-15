@@ -1,0 +1,27 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+[BOOT main] pid: 7236 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760515962821]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [36m304[0m 10.839 ms - -[0m
+[0mGET /favicon.ico [33m404[0m 327.335 ms - 56[0m
+[0mPOST /api/auth/login [32m200[0m 398.938 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.406 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 43.252 ms - -[0m
+[0mGET /api/projects [33m401[0m 3.050 ms - 59[0m
+[0mGET /login.html [36m304[0m 0.428 ms - -[0m
+[0mPOST /api/auth/login [32m200[0m 273.928 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.383 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 46.400 ms - -[0m
+[0mGET /api/projects [33m401[0m 2.135 ms - 59[0m
+[0mGET /__routes [36m304[0m 38.470 ms - -[0m
+[0mGET /login.html [36m304[0m 0.386 ms - -[0m
+[0mPOST /api/auth/login [32m200[0m 267.490 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.233 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 40.020 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.045 ms - 59[0m
+[0mGET /api/auth/me [36m304[0m 174.151 ms - -[0m
+[0mGET /api/debug/auth-headers [32m200[0m 37.778 ms - 282[0m

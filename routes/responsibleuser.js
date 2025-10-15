@@ -1,7 +1,7 @@
 // 前端「負責人」下拉選單用
 const express = require("express");
 const { pool } = require("../db");
-const auth = require("./auth"); // 直接引用你剛完成的 routes/auth.js（裡面掛了 attachUser/requireAuth）
+const { attachUser, requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ router.get("/ping", (_req, res) => {
 });
 
 // 🟡 偵錯用：確認 attachUser 是否還原出 req.user
-router.get("/whoami", auth.attachUser, (req, res) => {
+router.get("/whoami", attachUser, (req, res) => {
   res.json({ ok: true, user: req.user ?? null });
 });
 
@@ -23,8 +23,8 @@ router.get("/whoami", auth.attachUser, (req, res) => {
  * 下拉選單（重點）：
  * - 前端呼叫：GET /api/responsible-user/options
  * - 套用登入驗證：
- *   - auth.attachUser：從 JWT Cookie 還原 req.user
- *   - auth.requireAuth：未登入回 401
+ *   - attachUser：從 JWT Cookie 還原 req.user
+ *   - requireAuth：未登入回 401
  * - 權限邏輯：
  *   - admin：回所有使用者（可選擇加 is_active 過濾）
  *   - member：只回「自己」一筆，避免看見別人
@@ -34,60 +34,35 @@ router.get("/whoami", auth.attachUser, (req, res) => {
  */
 router.get(
   "/options",
-  auth.attachUser,   // 解析 JWT -> req.user = { id, username, role }
-  auth.requireAuth,  // 未登入就擋下
-  async (req, res) => {
+  attachUser,   // 解析 JWT -> req.user = { id, username, role }
+  requireAuth,  // 未登入就擋下
+  async (_req, res) => {
     try {
-      // 依角色回不同內容
-      if (req.user.role === "admin") {
-        // 管理者：看到全部人
-        const rs = await pool.query(
-          `
-          SELECT
-            id,
-            username,
-            -- 🟡 更安全：若沒有 display_name 欄位之外的 name，就不要引用 name，避免 500
-            COALESCE(name, username) AS display_name
-          FROM "user"
-          -- 如需只回啟用帳號，可打開下一行
-          -- WHERE is_active = TRUE
-          ORDER BY id
-          `
-        );
+      const rs = await pool.query(
+        `
+        SELECT
+          id,
+          username,
+          name,
+          role_id,
+          COALESCE(NULLIF(TRIM(name), ''), username) AS display_name
+        FROM "user"
+        WHERE COALESCE(is_active, TRUE) = TRUE --過濾啟用帳號
+        -- 排序規則：
+        -- 1) role_id 由小到大（系統管理員在前)
+        -- 2) id 由小到大
+        ORDER BY role_id ASC, id ASC
+        `
+      );
 
-        return res.json({
-          ok: true,
-          data: rs.rows.map(u => ({
-            id: u.id,
-            username: u.username,
-            display_name: u.display_name,
-          })),
-        });
-      } else {
-        // 一般成員：只回自己
-        const rs = await pool.query(
-          `
-          SELECT
-            id,
-            username,
-            COALESCE(name, username) AS display_name
-          FROM "user"
-          WHERE id = $1
-          -- AND is_active = TRUE
-          LIMIT 1
-          `,
-          [req.user.id]
-        );
-
-        return res.json({
-          ok: true,
-          data: rs.rows.map(u => ({
-            id: u.id,
-            username: u.username,
-            display_name: u.display_name,
-          })),
-        });
-      }
+      return res.json({
+        ok: true,
+        data: rs.rows.map(u => ({
+          id: String(u.id),
+          username: u.username,
+          name: u.name,
+        })),
+      });
     } catch (e) {
       console.error("[GET /responsible-user/options] error:", e);
       res.status(500).json({ ok: false, message: "load users failed" });

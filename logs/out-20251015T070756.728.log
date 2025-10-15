@@ -1,0 +1,8 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+[BOOT main] pid: 19576 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760512076689]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅

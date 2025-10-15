@@ -1,0 +1,22 @@
+[POST /api/projects] failed: error: duplicate key value violates unique constraint "project_project_id_key"
+    at C:\Users\USER\Desktop\CODE\designer\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\projects.js:118:22 {
+  length: 221,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (project_id)=(20250001) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'project',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'project_project_id_key',
+  file: 'nbtinsert.c',
+  line: '673',
+  routine: '_bt_check_unique'
+}

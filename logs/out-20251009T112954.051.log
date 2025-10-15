@@ -1,0 +1,66 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+[BOOT main] pid: 6704 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760004832563]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [36m304[0m 2.930 ms - -[0m
+[REQ] GET /favicon.ico
+[0mGET /favicon.ico [33m404[0m 4.471 ms - 56[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 371.156 ms - 350[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.435 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.535 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 8.388 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 5.093 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 38.391 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 39.196 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 143.784 ms - 42[0m
+[REQ] GET /api/responsible-user/ping
+[responsible-user] /ping hit
+[0mGET /api/responsible-user/ping [32m200[0m 1.390 ms - 11[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 1.682 ms - 72[0m
+[REQ] GET /api/responsible-user/Lisa
+[0mGET /api/responsible-user/Lisa [33m404[0m 0.777 ms - 70[0m
+[0mGET /login.html [36m304[0m 0.318 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.714 ms - 93[0m
+[0mGET /login.html [36m304[0m 0.843 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.421 ms - 93[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [32m200[0m 234.889 ms - 350[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.353 ms - -[0m
+[REQ] GET /.well-known/appspecific/com.chrome.devtools.json
+[0mGET /.well-known/appspecific/com.chrome.devtools.json [33m404[0m 0.451 ms - 93[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.684 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.100 ms - -[0m
+[REQ] GET /api/auth/login
+[0mGET /api/auth/login [33m404[0m 0.774 ms - 59[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 0.959 ms - 72[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 0.709 ms - 72[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 0.778 ms - 72[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 0.806 ms - 72[0m
+[REQ] GET /api/responsible-user/whoami
+[0mGET /api/responsible-user/whoami [33m404[0m 0.622 ms - 72[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [32m200[0m 0.987 ms - 62[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 37.451 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 37.201 ms - 42[0m

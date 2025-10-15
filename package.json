@@ -1,0 +1,33 @@
+{
+  "name": "designer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "cross-env NODE_ENV=production node server.js",
+    "dev": "cross-env NODE_ENV=development node server.js",
+    "db:migrate:verify": "psql -v ON_ERROR_STOP=1 -c \"SELECT 1;\"",
+    "db:migrate:up:001": "psql -v ON_ERROR_STOP=1 -f db/migrations/001project_responsible_sync.up.sql",
+    "db:migrate:down:002": "psql -v ON_ERROR_STOP=1 -f db/migrations/002project_responsible_sync.down.sql"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie": "^1.0.2",
+    "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
+    "dayjs": "^1.11.18",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "pg": "^8.16.3",
+    "sweetalert2": "^11.23.0"
+  }
+}

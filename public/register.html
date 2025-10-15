@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>註冊</title>
+  <style>
+    body{display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial;background:#f0f0f0}
+    .card{width:320px;background:#fff;padding:24px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.12);text-align:center}
+    input{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:8px}
+    button{width:100%;padding:10px;margin-top:8px;border:none;border-radius:8px;background:#4CAF50;color:#fff;font-size:16px;cursor:pointer}
+    button:hover{background:#45a049}
+    .msg{margin:8px 0;font-size:14px;min-height:1.2em}
+    .msg.error{color:#c62828}
+    .msg.success{color:#2e7d32}
+    a{display:inline-block;margin-top:10px;text-decoration:none;color:#1976d2}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>註冊</h2>
+    <div id="msg" class="msg"></div>
+
+    <form id="form" autocomplete="off">
+      <input id="name"      placeholder="姓名"   autocomplete="name"     required />
+      <input id="username"  placeholder="帳號"   autocomplete="username" required />
+      <input id="password"  name="password" type="password" placeholder="至少 6 碼的密碼" autocomplete="new-password" minlength="6" required/>
+      <button id="btn" type="submit">註冊</button>
+    </form>
+
+    <a href="/login.html" id="toLogin">已有帳號？前往登入</a>
+  </div>
+
+  <script>
+    // 依執行環境決定 API base：http 走同網域，file 走本機 3000
+    const API_BASE = location.protocol.startsWith("http") ? "" : "http://127.0.0.1:3000";
+    const API = API_BASE + "/api/auth/register";
+
+    const form = document.getElementById("form");
+    const btn  = document.getElementById("btn");
+    const msg  = document.getElementById("msg");
+
+    // file:// 開啟時，連結改成相對路徑
+    if (location.protocol === "file:") {
+      document.getElementById("toLogin").setAttribute("href", "login.html");
+    }
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();                    // ←←← 關鍵：阻止表單預設提交（避免整頁重載）
+      msg.textContent = ""; msg.className = "msg";
+
+      const body = {
+        name: document.getElementById("name").value.trim(),
+        username: document.getElementById("username").value.trim(),
+        password: document.getElementById("password").value
+      };
+
+      if (!body.name || !body.username || !body.password) {
+        msg.textContent = "請完整填寫"; msg.classList.add("error"); return;
+      }
+
+      // 防重複送出
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = "送出中…";
+
+      try {
+        const res = await fetch(API, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body)
+        });
+
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+
+        if (res.ok && data.ok) {
+          msg.textContent = data.msg || "註冊成功，3 秒後跳到登入頁…";
+          msg.classList.add("success");
+          setTimeout(() => {
+            if (location.protocol.startsWith("http")) location.href = "/login.html";
+            else location.href = "login.html";
+          }, 3000);
+        } else {
+          msg.textContent = (data && data.msg) ? data.msg : `發生錯誤（HTTP ${res.status}）`;
+          msg.classList.add("error");
+        }
+      } catch (e) {
+        msg.textContent = "無法連到伺服器，請確認以 http 開啟或 server 正在執行";
+        msg.classList.add("error");
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
+  </script>
+</body>
+</html>

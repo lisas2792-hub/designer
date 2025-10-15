@@ -1,0 +1,351 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+[BOOT main] pid: 7744 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1759998236854]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [32m200[0m 12.833 ms - 3002[0m
+[REQ] GET /favicon.ico
+[0mGET /favicon.ico [33m404[0m 9.092 ms - 56[0m
+[REQ] GET /api/auth/auth-ping
+[auth] /auth-ping hit
+[0mGET /api/auth/auth-ping [32m200[0m 1.539 ms - 11[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '1', username: 'Lisa', role: 'admin' }
+[0mPOST /api/auth/login [32m200[0m 254.368 ms - 155[0m
+[0mGET /home.html?username=Lisa [32m200[0m 3.146 ms - 53359[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.474 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 9.153 ms - 1377[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 1.220 ms - 30[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [32m200[0m 0.880 ms - 62[0m
+[0mGET /login.html [36m304[0m 0.513 ms - -[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '2', username: 'Harrison', role: 'member' }
+[0mPOST /api/auth/login [32m200[0m 243.423 ms - 160[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.288 ms - -[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [32m200[0m 3.475 ms - 92[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 3.780 ms - 344[0m
+[0mGET /login.html [36m304[0m 0.381 ms - -[0m
+[REQ] POST /api/auth/login
+[0mPOST /api/auth/login [33m400[0m 237.327 ms - 42[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '1', username: 'Lisa', role: 'admin' }
+[0mPOST /api/auth/login [32m200[0m 198.108 ms - 155[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.283 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.180 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 3.995 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.816 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.341 ms - -[0m
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 2.011 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 4.404 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.388 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.169 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.134 ms - -[0m
+[0mGET /login.html [36m304[0m 0.271 ms - -[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '2', username: 'Harrison', role: 'member' }
+[0mPOST /api/auth/login [32m200[0m 232.182 ms - 160[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.244 ms - -[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 0.919 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 2.804 ms - 344[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 5.107 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 138.634 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 38.321 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 35.649 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 38.390 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.219 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 43.431 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.204 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.468 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 0.972 ms - 344[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.236 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.008 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.194 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.257 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.235 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.082 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.165 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 42.524 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.317 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.196 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.137 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.057 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.545 ms - 42[0m
+[0mGET /home.html?username=Harrison [36m304[0m 0.204 ms - -[0m
+[REQ] GET /api/me?username=Harrison
+[0mGET /api/me?username=Harrison [36m304[0m 40.030 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.348 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.203 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.102 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.049 ms - -[0m
+[0mGET /login.html [36m304[0m 0.197 ms - -[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '1', username: 'Lisa', role: 'admin' }
+[0mPOST /api/auth/login [32m200[0m 196.647 ms - 155[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.205 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.809 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 1.026 ms - 1377[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 2.081 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.273 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 39.124 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.027 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.316 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.093 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.008 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.262 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.370 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.992 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.252 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.753 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.924 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.261 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.941 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.015 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.397 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.928 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.960 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.193 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.322 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.032 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.259 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.029 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.965 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.201 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.431 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 36.824 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.343 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.354 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 2.261 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.075 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.174 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.030 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.446 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.765 ms - 42[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.667 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.702 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.957 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.697 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.554 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.529 ms - -[0m
+[REQ] GET /api/auth/auth-ping
+[auth] /auth-ping hit
+[0mGET /api/auth/auth-ping [36m304[0m 0.475 ms - -[0m
+[REQ] GET /api/auth/auth-ping
+[auth] /auth-ping hit
+[0mGET /api/auth/auth-ping [36m304[0m 0.370 ms - -[0m
+[REQ] GET /api/auth/auth-ping
+[auth] /auth-ping hit
+[0mGET /api/auth/auth-ping [36m304[0m 0.382 ms - -[0m
+[REQ] GET /api/auth/auth-ping
+[auth] /auth-ping hit
+[0mGET /api/auth/auth-ping [36m304[0m 0.457 ms - -[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 0.476 ms - 30[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 0.371 ms - 30[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 0.359 ms - 30[0m
+[REQ] GET /api/auth/dev-login?username=Lisa
+[0mGET /api/auth/dev-login?username=Lisa [33m404[0m 0.423 ms - 30[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.800 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.722 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.506 ms - -[0m
+[REQ] GET /api/auth/me
+[0mGET /api/auth/me [36m304[0m 0.536 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.210 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [36m304[0m 0.423 ms - -[0m
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.020 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 2.757 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.146 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.985 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.163 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 36.852 ms - 42[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 35.513 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.185 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 38.748 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.785 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.224 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.424 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.001 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.490 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.376 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [36m304[0m 0.241 ms - -[0m
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.385 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 4.418 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.159 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.980 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.174 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.202 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.962 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.940 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.154 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.241 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 39.968 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.118 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.175 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 0.911 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.963 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.143 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.376 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /home.html?username=Lisa [36m304[0m 0.306 ms - -[0m
+[0mGET /api/me?username=Lisa [0m-[0m - ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [32m200[0m 1.037 ms - 91[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [32m200[0m 2.804 ms - 1377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.266 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.150 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 1.463 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.216 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.283 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 0.928 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.197 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.254 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 39.605 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.135 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.223 ms - 42[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.181 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 138.415 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 2.576 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.145 ms - 42[0m
+[0mGET /login.html [36m304[0m 0.190 ms - -[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '1', username: 'Lisa', role: 'admin' }
+[0mPOST /api/auth/login [32m200[0m 231.853 ms - 155[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.194 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.391 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 4.311 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.252 ms - 42[0m
+[0mGET /login.html [36m304[0m 0.516 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 36.142 ms - 42[0m
+[0mGET /login.html [36m304[0m 1.183 ms - -[0m
+[0mGET /login.html [32m200[0m 3.052 ms - 3634[0m
+[REQ] POST /api/auth/login
+[login] issue token for { id: '1', username: 'Lisa', role: 'admin' }
+[0mPOST /api/auth/login [32m200[0m 236.174 ms - 155[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.579 ms - -[0m
+[REQ] GET /api/me?username=Lisa
+[0mGET /api/me?username=Lisa [36m304[0m 1.018 ms - -[0m
+[REQ] GET /api/projects
+[0mGET /api/projects [36m304[0m 3.401 ms - -[0m
+[REQ] GET /api/responsible-user/options
+[0mGET /api/responsible-user/options [31m500[0m 1.813 ms - 42[0m

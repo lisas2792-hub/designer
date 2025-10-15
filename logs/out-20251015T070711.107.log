@@ -1,0 +1,55 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+[BOOT main] pid: 7496 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760509199764]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [32m200[0m 8.215 ms - 3634[0m
+[0mGET /favicon.ico [33m404[0m 61.695 ms - 56[0m
+[0mPOST /api/auth/login [33m400[0m 399.016 ms - 42[0m
+[0mPOST /api/auth/login [32m200[0m 241.779 ms - 377[0m
+[0mGET /home.html?username=Lisa [32m200[0m 1.101 ms - 56744[0m
+[0mGET /api/auth/me [32m200[0m 52.658 ms - 62[0m
+[0mGET /api/projects [33m401[0m 1.838 ms - 33[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.635 ms - 56744[0m
+[0mGET /api/auth/me [32m200[0m 177.572 ms - 62[0m
+[0mGET /api/projects [33m401[0m 1.329 ms - 33[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.520 ms - 56744[0m
+[0mGET /api/auth/me [32m200[0m 79.774 ms - 62[0m
+[0mGET /api/projects [33m401[0m 1.658 ms - 33[0m
+[0mPOST /api/auth/logout [32m200[0m 34.234 ms - 11[0m
+[0mGET /login.html [32m200[0m 0.492 ms - 3634[0m
+[0mPOST /api/auth/login [32m200[0m 230.990 ms - 377[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.779 ms - 56744[0m
+[0mGET /api/auth/me [32m200[0m 38.533 ms - 62[0m
+[0mGET /api/projects [33m401[0m 1.066 ms - 33[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.630 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 177.236 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.187 ms - 33[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.407 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 73.127 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.668 ms - 33[0m
+[0mPOST /api/auth/login [32m200[0m 267.359 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.267 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 39.033 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.252 ms - 33[0m
+[0mPOST /api/auth/logout [32m200[0m 34.426 ms - 11[0m
+[0mGET /login.html [36m304[0m 0.284 ms - -[0m
+[0mPOST /api/auth/login [32m200[0m 231.353 ms - 389[0m
+[0mGET /home.html?username=Harrison [32m200[0m 1.315 ms - 56744[0m
+[0mGET /api/auth/me [32m200[0m 40.781 ms - 67[0m
+[0mGET /api/projects [33m401[0m 1.341 ms - 33[0m
+[0mGET /login.html [36m304[0m 0.493 ms - -[0m
+[0mGET /favicon.ico [33m404[0m 36.886 ms - 56[0m
+[0mPOST /api/auth/login [32m200[0m 266.244 ms - 377[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.813 ms - -[0m
+[0mGET /api/auth/me [32m200[0m 37.806 ms - 62[0m
+[0mGET /api/projects [33m401[0m 1.320 ms - 33[0m
+[0mGET /api/auth/me [36m304[0m 82.152 ms - -[0m
+[0mGET /api/projects [33m401[0m 1.225 ms - 33[0m
+[0mGET /api/projects/__ping [33m401[0m 36.627 ms - 33[0m
+[0mGET /api/projects/__ping [33m401[0m 34.972 ms - 33[0m
+[0mGET /api/projects/__ping [33m401[0m 36.769 ms - 33[0m
+[0mGET /api/projects [33m401[0m 138.511 ms - 33[0m

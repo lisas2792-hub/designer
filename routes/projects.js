@@ -1,24 +1,22 @@
 // 處理專案project
 
-const { Router } = require("express");
+const express = require('express');
+const router = express.Router();
 const dayjs = require("dayjs");
 const { pool } = require("../db");
 
-// routes/auth.js 裡加的 middleware
-const auth = require("./auth");
+// middleware 檔案不用再引入（server.js 已全域掛）
 
-const router = Router();
-
-// 全域套用：先還原 req.user，再強制驗證登入
-router.use(auth.attachUser);
-router.use(auth.requireAuth);
-
+/** 角色判斷：支援英文代碼與中文標籤 */
+function isAdmin(me){
+  const r = (me?.role_code || me?.role || '').toString().trim();
+  return r === 'admin' || r === '系統管理員';
+}
 
 /** 讓空字串 -> null，前端容易丟 "" 進來 */
 function toNull(v) { return (v === "" || v === undefined) ? null : v }
 
-
-// 後端統一計算到期日
+/** 後端統一計算到期日 */
 function calcDueDate(start_date, estimated_days) {
   if (!start_date || !estimated_days) return null;
   const d = dayjs(start_date);
@@ -57,10 +55,9 @@ router.post("/projects", async (req, res) => {
     }
 
     // 非 admin：無論前端傳什麼，一律只允許顯示指派給自己的專案
-    let finalResponsibleUserId = (me.role === "admin")
-      ? (responsible_user_id === "" || responsible_user_id == null ? null : Number(responsible_user_id))
+    let finalResponsibleUserId = isAdmin(me)
+      ? (responsible_user_id === "" || responsible_user_id == null ? null : responsible_user_id)
       : me.id;
-
 
     // 設計/施工階段必填 start_date / estimated_days且有效
     if (stageIdNum === 1 || stageIdNum === 2) {
@@ -86,17 +83,13 @@ router.post("/projects", async (req, res) => {
       (estimated_days === "" || estimated_days === undefined || estimated_days === null)
         ? null : Number(estimated_days);
     const _due_date = calcDueDate(_start_date, _estimated_days);
-    const _responsible_user_id =
-      (responsible_user_id === "" || responsible_user_id === undefined || responsible_user_id === null)
-        ? null : Number(responsible_user_id);
     const _responsible_user_name = toNull(responsible_user_name);
     const _creator_user_name = toNull(creator_user_name);
-
 
     const sql = `
       INSERT INTO project
       (project_id, name, stage_id, start_date, estimated_days, due_date,
-       responsible_user_id, responsible_user_name, creator_user_id, creator_user_name)
+      responsible_user_id, responsible_user_name, creator_user_id, creator_user_name)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING id, project_id, name, stage_id, start_date, estimated_days, due_date,
                 responsible_user_id, responsible_user_name, creator_user_id, creator_user_name, created_at, updated_at
@@ -109,9 +102,9 @@ router.post("/projects", async (req, res) => {
       _start_date,
       _estimated_days,
       _due_date,
-      finalResponsibleUserId,
+      finalResponsibleUserId,     // <- 可能是 null...
       _responsible_user_name,
-      me.id,            // 用算好的 creatorId，而不是 _creator_user_id
+      me.id,                      // <- 不轉 Number，直接用 me.id（字串）
       me.username
     ];
 
@@ -131,18 +124,28 @@ router.post("/projects", async (req, res) => {
   }
 });
 
-
 // 取得列表 API
 router.get("/projects", async (req, res) => {
   try {
     const me = req.user;
-    let sql = `SELECT * FROM project`;
+
+    let sql = `
+      SELECT
+        p.*,
+        COALESCE(p.responsible_user_name, u.username) AS responsible_user_name
+      FROM project p
+      LEFT JOIN "user" u ON u.id = p.responsible_user_id
+    `;
     const params = [];
-    if (me.role !== "admin") {
+
+    // 非 admin 只能看見自己的專案
+    if (!isAdmin(me)) {
       sql += ` WHERE responsible_user_id = $1`;
-      params.push(me.id);
+      params.push(me.id); 
     }
+
     sql += ` ORDER BY created_at DESC LIMIT 200`;
+    
     const { rows } = await pool.query(sql, params);
     res.json({ ok: true, data: rows });
   } catch (err) {
@@ -151,8 +154,7 @@ router.get("/projects", async (req, res) => {
   }
 });
 
-
-// 取得單筆專案資料(之後篩選可用)
+// 取得單筆專案資料
 router.get("/projects/:id", async (req, res) => {
   try {
     const me = req.user;
@@ -163,7 +165,8 @@ router.get("/projects/:id", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, msg: "not found" });
 
     const row = rows[0];
-    if (me.role !== "admin" && row.responsible_user_id !== me.id) {
+    // ✅ 改成字串比較，避免型別不一致
+    if (!isAdmin(me) && String(row.responsible_user_id) !== String(me.id)) {
       return res.status(403).json({ ok: false, msg: "NOT_OWNER" });
     }
 
@@ -191,7 +194,8 @@ router.patch("/projects/:id", async (req, res) => {
     if (targetRows.length === 0) return res.status(404).json({ ok: false, message: "專案不存在" });
     const target = targetRows[0];
 
-    if (me.role !== "admin" && target.responsible_user_id !== me.id) {
+    // ✅ 改成字串比較
+    if (!isAdmin(me) && String(target.responsible_user_id) !== String(me.id)) {
       return res.status(403).json({ ok: false, message: "NOT_OWNER" });
     }
 
@@ -202,11 +206,11 @@ router.patch("/projects/:id", async (req, res) => {
       stage_id: raw.stage_id !== undefined ? Number(raw.stage_id) : undefined,
       start_date: raw.start_date === "" ? null : raw.start_date,
       estimated_days: raw.estimated_days === "" ? null : (raw.estimated_days !== undefined ? Number(raw.estimated_days) : undefined),
-      responsible_user_id: raw.responsible_user_id === "" ? null : (raw.responsible_user_id !== undefined ? Number(raw.responsible_user_id) : undefined),
+      responsible_user_id: raw.responsible_user_id === "" ? null : (raw.responsible_user_id !== undefined ? raw.responsible_user_id : undefined),
     };
 
     // ❗ 非 admin 不允許改負責人
-    if (me.role !== "admin") {
+    if (!isAdmin(me)) {
       delete patch.responsible_user_id;
     }
 
@@ -254,7 +258,6 @@ router.patch("/projects/:id", async (req, res) => {
   }
 });
 
-
 // 刪除專案
 router.delete("/projects/:id", async (req, res) => {
   try {
@@ -266,7 +269,8 @@ router.delete("/projects/:id", async (req, res) => {
     const { rows } = await pool.query(`SELECT responsible_user_id FROM project WHERE id=$1`, [id]);
     if (rows.length === 0) return res.status(404).json({ ok: false, message: "not found" });
 
-    if (me.role !== "admin" && rows[0].responsible_user_id !== me.id) {
+    // ✅ 改成字串比較
+    if (!isAdmin(me) && String(rows[0].responsible_user_id) !== String(me.id)) {
       return res.status(403).json({ ok: false, message: "NOT_OWNER" });
     }
 

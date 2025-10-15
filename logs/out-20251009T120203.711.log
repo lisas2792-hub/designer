@@ -1,0 +1,59 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 📡 version env with Radar: https://dotenvx.com/radar
+[BOOT main] pid: 7376 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760010469632]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /login.html [36m304[0m 5.701 ms - -[0m
+[0mGET /favicon.ico [33m404[0m 5.493 ms - 56[0m
+[0mPOST /api/auth/login [32m200[0m 267.504 ms - 350[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.731 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 2.629 ms - -[0m
+[0mGET /api/projects [36m304[0m 12.101 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 2.835 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 2.895 ms - 53634[0m
+[0mGET /api/me?username=Lisa [36m304[0m 37.642 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.287 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.324 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 1.164 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.323 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.276 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.762 ms - 53637[0m
+[0mGET /api/me?username=Lisa [36m304[0m 39.019 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.604 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.231 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 2.148 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.140 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.451 ms - 53617[0m
+[0mGET /api/me?username=Lisa [36m304[0m 41.297 ms - -[0m
+[0mGET /api/projects [36m304[0m 2.638 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.275 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 1.120 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.591 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.370 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 37.165 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.594 ms - 53773[0m
+[0mGET /api/me?username=Lisa [36m304[0m 39.028 ms - -[0m
+[0mGET /api/projects [36m304[0m 4.070 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.249 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 0.906 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.845 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 0.997 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.217 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 0.983 ms - -[0m
+[0mGET /api/projects [36m304[0m 0.899 ms - -[0m
+[0mGET /home.html?username=Lisa [32m200[0m 0.715 ms - 53765[0m
+[0mGET /api/me?username=Lisa [36m304[0m 39.700 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.047 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.262 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 1.366 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.107 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.189 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 0.949 ms - -[0m
+[0mGET /api/projects [36m304[0m 0.921 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.189 ms - -[0m
+[0mGET /api/me?username=Lisa [36m304[0m 1.109 ms - -[0m
+[0mGET /api/projects [36m304[0m 0.962 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.531 ms - -[0m

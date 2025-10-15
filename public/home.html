@@ -403,15 +403,37 @@
 
     // API 幫手：根據是否 file:// 做本機/同網域
     const API_BASE = location.protocol.startsWith("http") ? "" : "http://127.0.0.1:3000";
+    const authToken = {
+      get: () => localStorage.getItem("AUTH_TOKEN") || "",
+      set: (t) => localStorage.setItem("AUTH_TOKEN", t || ""),
+      clear: () => localStorage.removeItem("AUTH_TOKEN"),
+    };
+
+    async function apiFetch(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const t = authToken.get();
+      if (t) headers.set("Authorization", "Bearer " + t);
+      const res = await fetch(url, { credentials: "include", ...options, headers });
+      return res;
+    }
+
+    
+
     const API = {
+      // 修改密碼 API
+      auth: {
+        login:  API_BASE + "/api/auth/login",
+        me:     API_BASE + "/api/auth/me",
+        changePassword: API_BASE + "/api/auth/change-password",
+        logout: API_BASE + "/api/auth/logout",
+      },
       projects: {
         list:   API_BASE + "/api/projects",
         create: API_BASE + "/api/projects",
-        update: id => API_BASE + "/api/projects/" + id,
-        remove: id => API_BASE + "/api/projects/" + id
+        update: (id) => API_BASE + "/api/projects/" + id,
+        remove: (id) => API_BASE + "/api/projects/" + id,
       },
       responsibleUserOptions: API_BASE + "/api/responsible-user/options",
-      me: username => API_BASE + "/api/me?username=" + encodeURIComponent(username)
     };
 
     // stage 對應 class 的 map
@@ -430,16 +452,15 @@
     // 開機：撈使用者 + 專案清單
     (async function boot(){
       try {
-        const username = getCurrentUsername();
-        if (!username) throw new Error("no username");
-
-        const res = await fetch(API.me(username), { credentials: 'include' });
+        const res = await apiFetch(API.auth.me); // 帶 token
         if (!res.ok) throw new Error("fetch /me failed");
         const json = await res.json();
         const me = json?.data || json; // 同時支援 {ok,data} 或直接物件
         window.__ME__ = me;
         document.getElementById('accountName').textContent = me.username || me.name || '—';
-        document.getElementById('accountRole').textContent = me.role || '—';
+        const roleCode  = (me.role_code || me.role || '').toString().trim();
+        const roleLabel = me.role_label || (roleCode === 'admin' ? '系統管理員' : (roleCode ? '一般會員' : '—'));
+        document.getElementById('accountRole').textContent = roleLabel;
       } catch (err) {
         console.error("[boot] failed:", err);
         document.getElementById('accountName').textContent ||= '—';
@@ -454,7 +475,7 @@
       const grid = document.getElementById('projectsGrid');
       grid.innerHTML = ""; // 先清空
       try{
-        const res = await fetch(API.projects.list, { credentials: 'include' });
+        const res = await apiFetch(API.projects.list);
         const data = await res.json();
         const ok = (data?.ok !== undefined) ? data.ok : res.ok;
         if(!ok) throw new Error(data?.message || "load failed");
@@ -788,10 +809,9 @@
       const isEdit = !!body.id;   // 有 id = 編輯，沒有 id = 新增
       const url = isEdit ? API.projects.update(body.id) : API.projects.create;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body)
       });
 
@@ -821,10 +841,9 @@
         const jobs = Array.from(dirty.entries()).map(([id, patch]) => ({
           id,
           patch,
-          promise: fetch(API.projects.update(id), {
+          promise: apiFetch(API.projects.update(id), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify(patch)
           }).then(async (res) => {
             if (!res.ok) {
@@ -935,37 +954,98 @@
 
 
   <script>
-    // 修改密碼（示意）
-    document.getElementById('savePwd').addEventListener('click', () => {
-      const oldPwd = document.getElementById('oldPwd').value.trim();
-      const newPwd = document.getElementById('newPwd').value.trim();
-      const newPwd2 = document.getElementById('newPwd2').value.trim();
-      const msg = document.getElementById('pwdMsg');
+  // 修改密碼
+  document.getElementById('savePwd').addEventListener('click', async () => {
+    const oldPwd = document.getElementById('oldPwd').value.trim();
+    const newPwd = document.getElementById('newPwd').value.trim();
+    const newPwd2 = document.getElementById('newPwd2').value.trim();
+    const msg = document.getElementById('pwdMsg');
 
-      if(!oldPwd || !newPwd || !newPwd2){
-        msg.style.color = '#b91c1c';
-        msg.textContent = '請完整填寫所有欄位';
-        return;
-      }
-      if(newPwd.length < 6){
-        msg.style.color = '#b91c1c';
-        msg.textContent = '新密碼長度需至少 6 碼';
-        return;
-      }
-      if(newPwd !== newPwd2){
-        msg.style.color = '#b91c1c';
-        msg.textContent = '兩次輸入的新密碼不一致';
+    // 清訊息
+    msg.style.color = '#6b7280';
+    msg.textContent = '';
+
+    // 基本驗證
+    if (!oldPwd || !newPwd || !newPwd2) {
+      msg.style.color = '#b91c1c';
+      msg.textContent = '請完整填寫所有欄位';
+      return;
+    }
+    if (newPwd.length < 6) {
+      msg.style.color = '#b91c1c';
+      msg.textContent = '新密碼長度需至少 6 碼';
+      return;
+    }
+    // 若要強制「至少 6 碼且需包含英文字母與數字」→ 打開下一行註解：
+    // if (!/(?=.*[A-Za-z])(?=.*\d).{6,}/.test(newPwd)) { msg.style.color='#b91c1c'; msg.textContent='密碼需至少6碼，且包含英文字母與數字'; return; }
+
+    if (newPwd !== newPwd2) {
+      msg.style.color = '#b91c1c';
+      msg.textContent = '兩次輸入的新密碼不一致';
+      return;
+    }
+
+    // 鎖按鈕避免重複送出
+    const btn = document.getElementById('savePwd');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '送出中…';
+
+    try {
+      const res = await apiFetch(API.auth.changePassword, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: oldPwd,
+          new_password: newPwd,
+          confirm_password: newPwd2
+        })
+      });
+
+      if (res.status === 401) {
+        msg.style.color = '#b45309';
+        msg.textContent = '尚未登入或登入已過期，請重新登入';
         return;
       }
 
-      msg.style.color = '#065f46';
-      msg.textContent = '已送出修改密碼請求（示意）';
-    });
+      // 成功：後端可能回 200 或 204
+      if (res.ok) {
+        const data = await res.json().catch(()=>({}));
+        if (data.token) authToken.set(data.token); // 若有回傳新 token 就更新
+
+        msg.style.color = '#065f46';
+        msg.textContent = '密碼已更新，其他裝置已登出';
+        // 清空欄位
+        document.getElementById('oldPwd').value = '';
+        document.getElementById('newPwd').value = '';
+        document.getElementById('newPwd2').value = '';
+        return;
+      }
+
+      // 其它錯誤讀取訊息
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+      msg.style.color = '#b91c1c';
+      msg.textContent = data.msg || '修改密碼失敗，請稍後再試';
+    } catch (err) {
+      console.error('[change-password] failed', err);
+      msg.style.color = '#b91c1c';
+      msg.textContent = '連線異常，請稍後再試';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText || '儲存';
+    }
+  });
   </script>
+
 
   <script>
     // 登出
-    document.getElementById("logoutBtn").addEventListener("click", () => {
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      try {
+        await apiFetch(API.auth.logout, { method: 'POST' });            // 通知後端清 cookie
+      } catch {}
+      authToken.clear();                                                // 清掉 Bearer
       sessionStorage.clear();
       window.location.href = "/login.html";
     });
@@ -983,14 +1063,14 @@
         // 先清到只剩未指派，避免舊選項殘留
         selectEl.innerHTML = '<option value="">（未指派）</option>';
 
-        const res = await fetch(API.responsibleUserOptions, { credentials: 'include' });
+        const res = await apiFetch(API.responsibleUserOptions);
         const json = await res.json();
         const users = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
 
         for (const u of users) {
           const opt = document.createElement('option');
           opt.value = String(u.id);
-          opt.textContent = u.display_name || `${u.name ?? ''}${u.username ? `（${u.username}）` : ''}`;
+          opt.textContent = u.name || u.username || String(u.id);
           selectEl.appendChild(opt);
         }
 
@@ -1004,11 +1084,18 @@
           selectEl.selectedIndex = 0;       // 強制回到「（未指派）」
         }
 
+        // 非 admin 一律鎖定
+        const role = (window.__ME__?.role_code || window.__ME__?.role || '').toString().trim();
+        selectEl.disabled = (role !== 'admin' && role !== '系統管理員');
+
       } catch (e) {
         console.warn('load responsible users failed', e);
         // 發生錯誤也保證回到未指派
         selectEl.innerHTML = '<option value="">（未指派）</option>';
         selectEl.selectedIndex = 0;
+
+        // 失敗時同樣鎖定，避免送出奇怪值
+        selectEl.disabled = true;
       }
     }
 
@@ -1075,7 +1162,7 @@
       modal.style.display = 'flex';
 
       const selRU = document.getElementById('f_responsible_user');
-      await loadResponsibleOptionsInto(selRU, (p.responsible_user_id === 0 || p.responsible_user_id == null) ? '' : p.responsible_user_id);
+      await loadResponsibleOptionsInto(selRU, (p.responsible_user_id == null || p.responsible_user_id === '') ? '' : String(p.responsible_user_id));
 
       document.getElementById('f_project_id').value = p.project_id ?? '';
       document.getElementById('f_name').value       = p.name ?? '';
@@ -1238,9 +1325,8 @@
         if(!ok) return;
 
         try{
-          const res = await fetch(API.projects.remove(idStr), {
+          const res = await apiFetch(API.projects.remove(idStr), {
             method: 'DELETE',
-            credentials: 'include'
           });
           if(!res.ok){
             const t = await res.text();
@@ -1270,10 +1356,9 @@
           rowEl.dataset.updatedAt = new Date().toISOString();
 
           //（可選）後端同步，若尚未支援可註解
-          fetch(API.projects.update(idStr), {
+          apiFetch(API.projects.update(idStr), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ stage_id:3 })
           }).catch(()=>{});
 
@@ -1298,7 +1383,7 @@
         stage_id:   Number(document.getElementById('f_stage').value),      // 數字
         start_date: document.getElementById('f_start_date').value || null,
         estimated_days: (()=>{ const v=document.getElementById('f_estimated_days').value; return v===''?null:Number(v) })(),
-        responsible_user_id: (()=>{ const v=document.getElementById('f_responsible_user').value; return v===''?null:Number(v) })(),
+        responsible_user_id: (()=>{ const v=document.getElementById('f_responsible_user').value; return v===''?null : String(v) })(),
         // 從 __ME__ 帶入建立者（與後端欄位對齊）
         creator_user_id: window.__ME__?.id ?? null,
         creator_user_name: window.__ME__?.name ?? window.__ME__?.username ?? null
