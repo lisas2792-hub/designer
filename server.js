@@ -6,6 +6,13 @@
 //   console.error("[FATAL] unhandledRejection:", r);
 // });
 
+// ==== Dayjs 全域設定：固定台北時區（避免少一天）====
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const tz  = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(tz);
+dayjs.tz.setDefault('Asia/Taipei');
 
 // server.js 入口檔
 require("dotenv").config();
@@ -32,6 +39,9 @@ const meRoutes   = require("./routes/me");
 const projectsRouter = require("./routes/projects");
 const responsibleUserRoute = require("./routes/responsibleuser");
 const { attachUser, requireAuth, requireAdmin } = require("./middleware/auth");
+const stagePlanRoutes   = require('./routes/stageplan');
+const stageUploadRoutes = require('./routes/stageupload');
+
 
 // CJS (CommonJS)
 // v8 正確匯入
@@ -57,6 +67,11 @@ app.use(cors({
   origin: ['http://127.0.0.1:3000', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://localhost:5173'],
   credentials: true
 }));
+
+
+// 靜態檔案服務（上傳的檔案）
+app.use(process.env.PUBLIC_UPLOAD_BASE || '/uploads',
+  express.static(process.env.UPLOAD_ROOT || '/var/www/uploads', { maxAge: '7d' }));
 
 
 // Helmet（開發期允許 inline，之後可移除 unsafe-inline）
@@ -254,6 +269,10 @@ app.use("/api", requireAuth, meRoutes);
 app.use("/api/responsible-user", requireAuth, responsibleUserRoute);
 
 app.use("/api", requireAuth, projectsRouter);
+
+app.use('/api', stageUploadRoutes);
+
+app.use('/api', stagePlanRoutes);
 
 // 其餘登入的 API 集中到這裡（受保護）
 // app.use("/api", requireAuth, [

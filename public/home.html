@@ -275,15 +275,20 @@
                 <span class="pill"><i class="dot danger"></i>超時7天</span>
                 <span class="pill"><i class="dot done"></i>完成(上傳照片)</span>
               </div>
-              <div class="function-buttons">
-                <button id="addProjectBtn"
-                        style="padding:6px 12px;border:1px solid var(--primary);background:#fff;color:var(--primary);border-radius:8px;cursor:pointer">
-                  新增
-                </button>
-                <button id="saveBtn"
-                        style="padding:6px 12px;border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:8px;cursor:pointer">
-                  儲存
-                </button>
+              <div class="function-buttons" style="flex-direction: column; align-items: flex-end;">
+                <div id="unsavedNotice" style="display:none;color:#b45309;font-weight:600;margin-bottom:4px;">
+                  ⚠️ 尚未儲存修改，請記得按下「儲存」
+                </div>
+                <div>
+                  <button id="addProjectBtn"
+                          style="padding:6px 12px;border:1px solid var(--primary);background:#fff;color:var(--primary);border-radius:8px;cursor:pointer">
+                    新增
+                  </button>
+                  <button id="saveBtn"
+                          style="padding:6px 12px;border:1px solid var(--primary);background:var(--primary);color:#fff;border-radius:8px;cursor:pointer">
+                    儲存
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -292,7 +297,7 @@
               <div>階段</div>
               <div>編號</div>
               <div>案名</div>
-              <!-- 🆕 新增：補上 8 欄位的表頭名稱，避免看起來「不見了」
+              <!--  8 欄位的表頭名稱
               <div>丈量</div>
               <div>案例分析</div>
               <div>平面放樣</div>
@@ -434,6 +439,11 @@
         remove: (id) => API_BASE + "/api/projects/" + id,
       },
       responsibleUserOptions: API_BASE + "/api/responsible-user/options",
+      stage: {
+        plan:   (projectDbId) => API_BASE + `/api/projects/${projectDbId}/stage-plan`,
+        done:   (projectDbId, stageNo) => API_BASE + `/api/projects/${projectDbId}/stages/${stageNo}/complete`,
+        list:   (projectDbId) => API_BASE + `/api/projects/${projectDbId}/stages`,
+      },
     };
 
     // stage 對應 class 的 map
@@ -523,6 +533,71 @@
         }
       }
 
+      // 從後端載入燈號，並把 8 格上色（none / warn / danger / done）
+      async function loadStageLights(p, rowEl){
+        try{
+          // 若沒有開始日/工期，多半是新案 → 直接清空狀態，不拋錯
+          // 但我們仍呼叫 API，因為後端會用 DB 值；若 DB 也沒有就回 400
+          const url = API.stage.plan(p.id);
+          const res = await apiFetch(url);
+          const json = await res.json().catch(()=>null);
+
+          // 失敗就不動，維持預設灰底
+          if(!res.ok || !json || json.ok === false){ return; }
+
+          const stages = json.data?.stages || [];
+          const cellByNo = {};
+          rowEl.querySelectorAll('.task-cell').forEach(el=>{
+            const n = Number(el.dataset.stageNo || 0);
+            if(n>=1 && n<=8) cellByNo[n] = el;
+            el.dataset.state = '';  // 清空
+          });
+
+          stages.forEach(s=>{
+            const cell = cellByNo[s.no];
+            if(!cell) return;
+            if(s.status === 'green')  cell.dataset.state = 'done';     // 綠燈
+            else if(s.status === 'red')   cell.dataset.state = 'danger'; // 紅燈
+            else if(s.status === 'orange')cell.dataset.state = 'warn';   // 橘燈
+            else cell.dataset.state = ''; // 一般
+          });
+        }catch(e){
+          console.warn('[stage-plan] load failed for project', p.id, e);
+        }
+      }
+
+      // 綁定點擊每一格：點一下 → 送出完成（覆蓋那一階段）→ 該格變綠
+      function bindStageCellClicks(rowEl, p){
+        rowEl.querySelectorAll('.task-cell').forEach(cell=>{
+          cell.addEventListener('click', async ()=>{
+            const no = Number(cell.dataset.stageNo || 0);
+            if(!no) return;
+
+            // 這裡先顯示「上傳預留」，現在只送出完成紀錄
+            try{
+              const res = await apiFetch(API.stage.done(p.id, no), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_url: null }) // 先留空，之後串真實上傳
+              });
+              const json = await res.json().catch(()=>null);
+              if(!res.ok || !json || json.ok === false){
+                alert('完成失敗，請稍後重試'); return;
+              }
+              // 只把本格變綠（done），不動其他格
+              cell.dataset.state = 'done';
+
+              // 你要「點了就開上傳」可以在這裡呼叫彈窗或顯示區塊（先留白）
+              // Swal.fire({ icon: 'success', title: '已標記完成', text: '之後可在此上傳檔案' });
+            }catch(e){
+              console.error('[stage done] failed', e);
+              alert('網路異常，請稍後重試');
+            }
+          });
+        });
+      }
+
+
       //把 created_at 正規化後塞到 dataset（供「全部」分頁排序）
       {
         const c = p.created_at || p.createdAt || null;
@@ -561,9 +636,9 @@
             html: `
               <div style="text-align:left">
                 <label style="display:block;margin:6px 0 4px">開始日期（必填）</label>
-                <input id="swal-input-date" type="date" class="swal2-input" style="width:100%;box-sizing:border-box" value="${start_date ?? ''}">
+                <input id="swal-input-date" type="date" class="swal2-input" style="width:80%;box-sizing:border-box" value="${start_date ?? ''}">
                 <label style="display:block;margin:10px 0 4px">工期天數（必填）</label>
-                <input id="swal-input-days" type="number" min="1" step="1" placeholder="天數" class="swal2-input" style="width:100%;box-sizing:border-box" value="${estimated_days ?? ''}">
+                <input id="swal-input-days" type="number" min="1" step="1" placeholder="天數" class="swal2-input" style="width:80%;box-sizing:border-box" value="${estimated_days ?? ''}">
               </div>
             `,
             focusConfirm: false,
@@ -600,7 +675,7 @@
             showCancelButton: true,
             confirmButtonText: '確認使用這些值',
             denyButtonText: '我要修改',
-            cancelButtonText: '取消'
+            cancelButtonText: '取消',
           });
           return { useExisting: isConfirmed, editInstead: isDenied };
         };
@@ -726,15 +801,16 @@
 
       // 固定的 8 個工作格（預設狀態為一般；若後端有狀態資料，可套上 data-state）
       const taskLabels = ["丈量","案例分析","平面放樣","平面圖","平面系統圖","立面框體圖","立面圖","施工圖"];
-      taskLabels.forEach(label=>{
+      taskLabels.forEach((label, idx)=>{
+        const no = idx + 1; // 1..8
         const c = document.createElement('div');
         c.className = 'task-cell';
+        c.dataset.stageNo = String(no);         // <── 給後續掛狀態/點擊用
         c.innerHTML = `<span>${label}</span>`;
         row.appendChild(c);
-        // 若後端提供 p.tasks 狀態（warn/danger/done），可取消下一行註解套用：
-        // if (p.tasks && p.tasks[idx] && p.tasks[idx].state) c.dataset.state = p.tasks[idx].state;
-        return c;
       });
+      bindStageCellClicks(row, p);       // 綁定點擊 → 綠燈 + POST 完成
+      loadStageLights(p, row);           // 從後端撈計畫 → 橘/紅/綠
 
       // ===== 動作按鈕（編輯 / 刪除 / 已完成） =====
 
@@ -776,6 +852,10 @@
     function markDirty(id, patch){
       const prev = dirty.get(id) || {};
       dirty.set(id, { ...prev, ...patch });
+
+      // 顯示「未儲存提示」
+      const notice = document.getElementById('unsavedNotice');
+      if (notice) notice.style.display = '';
     }
   </script>
 
@@ -824,73 +904,54 @@
   </script>
 
   <script>
-    // 儲存批次更新（不使用 Swal/SweetAlert）
+    // ✅ 儲存批次更新（加入 SweetAlert loading + 自動刷新燈號）
     document.getElementById('saveBtn').addEventListener('click', async () => {
       if (dirty.size === 0) {
-        alert('目前沒有修改');
+        Swal.fire({ icon: 'info', title: '沒有變更', timer: 800, showConfirmButton: false });
         return;
       }
 
-      const btn = document.getElementById('saveBtn');
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = '儲存中…';
+      Swal.fire({
+        title: '更新中...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
 
       try {
-        // 轉成陣列，好用 Promise.allSettled 平行送出
-        const jobs = Array.from(dirty.entries()).map(([id, patch]) => ({
-          id,
-          patch,
-          promise: apiFetch(API.projects.update(id), {
+        // 平行送出所有變更
+        const jobs = Array.from(dirty.entries()).map(([id, patch]) =>
+          apiFetch(API.projects.update(id), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(patch)
           }).then(async (res) => {
-            if (!res.ok) {
-              const t = await res.text().catch(() => '');
-              throw new Error(t || `HTTP ${res.status}`);
-            }
-            return true;
+            if (!res.ok) throw new Error(await res.text());
+            return id;
           })
-        }));
+        );
 
-        const results = await Promise.allSettled(jobs.map(j => j.promise));
+        const results = await Promise.allSettled(jobs);
+        const successIds = results.filter(r => r.status === 'fulfilled').map(r => r.value);
 
-        const failed = [];
-        const succeeded = [];
+        // 移除成功的 dirty
+        for (const id of successIds) dirty.delete(id);
 
-        results.forEach((r, i) => {
-          const { id } = jobs[i];
-          if (r.status === 'fulfilled') {
-            succeeded.push(id);
-          } else {
-            failed.push({ id, error: String(r.reason || 'Unknown error') });
-          }
-        });
+        Swal.close();
 
-        // 移除已成功的 dirty，保留失敗的讓使用者可重試
-        for (const id of succeeded) {
-          dirty.delete(id);
+        if (successIds.length > 0) {
+          Swal.fire({ icon: 'success', title: `已更新 ${successIds.length} 筆`, timer: 1000, showConfirmButton: false });
         }
 
-        if (failed.length === 0) {
-          alert(`已儲存（${succeeded.length} 筆）`);
-        } else {
-          // 彙整失敗訊息（避免過長，最多列 10 筆）
-          const lines = failed.slice(0, 10).map(f => `- id=${f.id}：${f.error}`);
-          const more  = failed.length > 10 ? `\n... 另有 ${failed.length - 10} 筆未顯示` : '';
-          alert(
-            `部分更新失敗。\n成功：${succeeded.length} 筆；失敗：${failed.length} 筆。\n` +
-            lines.join('\n') + more
-          );
-        }
+        // 更新後重新載入所有專案，刷新燈號
+        await loadAndRenderProjects();
+
+        // 隱藏未儲存提示
+        document.getElementById('unsavedNotice').style.display = 'none';
+
       } catch (e) {
+        Swal.close();
         console.error(e);
-        alert(`儲存發生未預期錯誤：${String(e)}`);
-      } finally {
-        // 還原按鈕狀態
-        btn.disabled = false;
-        btn.textContent = originalText || '儲存';
+        Swal.fire('錯誤', '更新時發生錯誤', 'error');
       }
     });
   </script>
@@ -1134,13 +1195,22 @@
 
     // due 預覽
     function updateDuePreview() {
-      const s = document.getElementById('f_start_date').value;
+      const s = document.getElementById('f_start_date').value; // 'YYYY-MM-DD'
       const d = parseInt(document.getElementById('f_estimated_days').value, 10);
       const el = document.getElementById('f_due_preview');
-      if (s && Number.isInteger(d)) {
-        const dt = new Date(s);
-        dt.setDate(dt.getDate() + d);
-        el.textContent = `預計完工日：${dt.toISOString().slice(0,10)}`;
+
+      if (s && Number.isInteger(d) && d > 0) {
+        // 解析 'YYYY-MM-DD'，只做「天」級運算，避免時區
+        const [Y, M, D] = s.split('-').map(n => parseInt(n, 10));
+        const base = new Date(Y, M - 1, D);              // 用本地 Date，但不輸出 ISO
+        base.setHours(12, 0, 0, 0);                      // 放中午，避免夏令/跨日邊界
+        // 與後端規則一致：planned_end = start + (d - 1)
+        base.setDate(base.getDate() + (d - 1));
+
+        const y = base.getFullYear();
+        const m = String(base.getMonth() + 1).padStart(2, '0');
+        const day = String(base.getDate()).padStart(2, '0');
+        el.textContent = `預計完工日：${y}-${m}-${day}`;
       } else {
         el.textContent = '預計完工日：—';
       }
@@ -1167,7 +1237,7 @@
       document.getElementById('f_project_id').value = p.project_id ?? '';
       document.getElementById('f_name').value       = p.name ?? '';
       document.getElementById('f_stage').value      = String(p.stage_id ?? 0);
-      document.getElementById('f_start_date').value = (p.start_date ?? '').slice(0,10);
+      document.getElementById('f_start_date').value = p.start_date ?? '';
       document.getElementById('f_estimated_days').value = (p.estimated_days ?? '') === null ? '' : (p.estimated_days ?? '');
 
       updateDuePreview();

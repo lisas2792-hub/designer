@@ -1,0 +1,22 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 📡 observe env with Radar: https://dotenvx.com/radar
+[BOOT main] pid: 27500 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760950168572]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /home.html?username=Lisa [36m304[0m 2.710 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 45.644 ms - -[0m
+[0mGET /api/projects [36m304[0m 6.233 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 5.185 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 74.328 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 76.689 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 81.160 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.406 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 1.731 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.505 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 2.894 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 7.724 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 11.640 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 14.818 ms - -[0m

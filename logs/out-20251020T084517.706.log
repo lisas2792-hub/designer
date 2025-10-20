@@ -1,0 +1,80 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[BOOT main] pid: 11324 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760949139804]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mPATCH /api/projects/24 [32m200[0m 56.206 ms - 347[0m
+[0mGET /api/projects [32m200[0m 3.389 ms - 1341[0m
+[0mGET /api/projects/24/stage-plan [32m200[0m 33.079 ms - 1206[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 56.408 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 59.348 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 147.317 ms - 58[0m
+[0mGET /api/responsible-user/options [36m304[0m 2.558 ms - -[0m
+[0mPATCH /api/projects/24 [32m200[0m 6.270 ms - 347[0m
+[0mGET /api/projects [32m200[0m 1.981 ms - 1341[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 4.386 ms - 58[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 8.585 ms - -[0m
+[0mGET /api/projects/24/stage-plan [32m200[0m 11.643 ms - 1208[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 15.908 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.981 ms - -[0m
+[0mPATCH /api/projects/24 [32m200[0m 40.776 ms - 347[0m
+[0mGET /api/projects [32m200[0m 2.454 ms - 1341[0m
+[0mGET /api/projects/24/stage-plan [32m200[0m 13.652 ms - 1206[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 50.276 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 157.300 ms - 58[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 164.459 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.960 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.819 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 41.781 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 39.618 ms - -[0m
+[0mPATCH /api/projects/24 [32m200[0m 7.717 ms - 347[0m
+[0mGET /api/projects [32m200[0m 3.044 ms - 1341[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 1.965 ms - 58[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 7.921 ms - -[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 49.313 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 51.600 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 1.258 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 45.067 ms - -[0m
+[0mGET /api/projects [36m304[0m 4.750 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 2.162 ms - 58[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 10.493 ms - -[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 48.862 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 151.282 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.907 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 142.011 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.524 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 1.686 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 8.160 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 53.163 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 55.580 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.250 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 1.825 ms - -[0m
+[0mGET /api/projects [36m304[0m 2.623 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 3.482 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 6.882 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 9.632 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 12.395 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 2.089 ms - -[0m
+[0mPATCH /api/projects/24 [32m200[0m 3.976 ms - 347[0m
+[0mGET /api/projects [32m200[0m 1.896 ms - 1341[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 2.256 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 6.462 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 9.108 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 12.519 ms - -[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.292 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 2.306 ms - -[0m
+[0mGET /api/projects [36m304[0m 1.434 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 2.203 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 6.856 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 9.896 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 13.303 ms - -[0m
+[0mGET /api/responsible-user/options [36m304[0m 1.580 ms - -[0m
+[0mPATCH /api/projects/24 [32m200[0m 1.835 ms - 347[0m
+[0mGET /api/projects [32m200[0m 1.314 ms - 1341[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 2.541 ms - 58[0m
+[0mGET /api/projects/24/stage-plan [36m304[0m 6.534 ms - -[0m
+[0mGET /api/projects/23/stage-plan [36m304[0m 9.327 ms - -[0m
+[0mGET /api/projects/21/stage-plan [36m304[0m 12.266 ms - -[0m

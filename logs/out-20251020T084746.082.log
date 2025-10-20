@@ -1,0 +1,22 @@
+[dotenv@17.2.2] injecting env (4) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[BOOT main] pid: 27300 cwd: C:\Users\USER\Desktop\CODE\designer
+[routes] responsibleuser loaded
+[ENV] { NODE_ENV: undefined, isProd: false }
+API on http://0.0.0.0:3000 [build:1760949953093]
+   Try: /health
+   Try: /api/db/ping
+[DB] Connected successfully ✅
+[0mGET /home.html?username=Lisa [36m304[0m 2.799 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 45.545 ms - -[0m
+[0mGET /api/projects [36m304[0m 4.911 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 6.356 ms - 58[0m
+[0mGET /api/projects/23/stage-plan [31m500[0m 27.605 ms - 33[0m
+[0mGET /api/projects/24/stage-plan [31m500[0m 49.911 ms - 33[0m
+[0mGET /api/projects/21/stage-plan [31m500[0m 50.623 ms - 33[0m
+[0mGET /home.html?username=Lisa [36m304[0m 0.363 ms - -[0m
+[0mGET /api/auth/me [36m304[0m 1.991 ms - -[0m
+[0mGET /api/projects [36m304[0m 3.710 ms - -[0m
+[0mGET /api/projects/31/stage-plan [33m400[0m 3.297 ms - 58[0m
+[0mGET /api/projects/23/stage-plan [31m500[0m 4.838 ms - 33[0m
+[0mGET /api/projects/24/stage-plan [31m500[0m 6.996 ms - 33[0m
+[0mGET /api/projects/21/stage-plan [31m500[0m 46.708 ms - 33[0m

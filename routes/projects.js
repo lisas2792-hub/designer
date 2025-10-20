@@ -1,11 +1,12 @@
 // 處理專案project
+// middleware 檔案不用再引入（server.js 已全域掛）
 
 const express = require('express');
 const router = express.Router();
 const dayjs = require("dayjs");
 const { pool } = require("../db");
 
-// middleware 檔案不用再引入（server.js 已全域掛）
+const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /** 角色判斷：支援英文代碼與中文標籤 */
 function isAdmin(me){
@@ -23,7 +24,8 @@ function calcDueDate(start_date, estimated_days) {
   if (!d.isValid()) return null;
   const days = Number(estimated_days);
   if (!Number.isFinite(days) || days <= 0) return null;
-  return d.add(days, "day").format("YYYY-MM-DD");
+  // 規則：到期日 = 起始日 + (天數 - 1)
+  return d.add(days - 1, "day").format("YYYY-MM-DD");
 }
 
 // 新增專案 API
@@ -61,7 +63,7 @@ router.post("/projects", async (req, res) => {
 
     // 設計/施工階段必填 start_date / estimated_days且有效
     if (stageIdNum === 1 || stageIdNum === 2) {
-      if (!start_date || !dayjs(start_date).isValid()) {
+      if (!isYmd(start_date)) {
         return res.status(400).json({
           ok: false,
           code: "REQUIRE_START_DATE",
@@ -91,8 +93,14 @@ router.post("/projects", async (req, res) => {
       (project_id, name, stage_id, start_date, estimated_days, due_date,
       responsible_user_id, responsible_user_name, creator_user_id, creator_user_name)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING id, project_id, name, stage_id, start_date, estimated_days, due_date,
-                responsible_user_id, responsible_user_name, creator_user_id, creator_user_name, created_at, updated_at
+      RETURNING
+        id, project_id, name, stage_id,
+        to_char(start_date::date, 'YYYY-MM-DD') AS start_date, 
+        estimated_days,
+        to_char(due_date::date, 'YYYY-MM-DD')   AS due_date,
+        responsible_user_id, responsible_user_name,
+        creator_user_id, creator_user_name,
+        created_at, updated_at
     `;
 
     const params = [
@@ -124,28 +132,41 @@ router.post("/projects", async (req, res) => {
   }
 });
 
-// 取得列表 API
+// 取得列表 API（請整段覆蓋）
 router.get("/projects", async (req, res) => {
   try {
     const me = req.user;
+    const is_admin = isAdmin(me);
 
-    let sql = `
-      SELECT
-        p.*,
-        COALESCE(p.responsible_user_name, u.username) AS responsible_user_name
-      FROM project p
-      LEFT JOIN "user" u ON u.id = p.responsible_user_id
-    `;
     const params = [];
-
-    // 非 admin 只能看見自己的專案
-    if (!isAdmin(me)) {
-      sql += ` WHERE responsible_user_id = $1`;
-      params.push(me.id); 
+    let whereSql = '';
+    if (!is_admin) {
+      params.push(String(me.id));
+      whereSql = 'WHERE p.responsible_user_id = $1';
     }
 
-    sql += ` ORDER BY created_at DESC LIMIT 200`;
-    
+    const sql = `
+      SELECT
+        p.id,
+        p.project_id,
+        p.name,
+        p.stage_id,
+        to_char(p.start_date::date, 'YYYY-MM-DD') AS start_date,  -- 字串
+        p.estimated_days,
+        to_char(p.due_date::date,   'YYYY-MM-DD') AS due_date,    -- 字串
+        p.responsible_user_id,
+        COALESCE(p.responsible_user_name, u.username) AS responsible_user_name,
+        p.creator_user_id,
+        p.creator_user_name,
+        p.created_at,
+        p.updated_at
+      FROM project AS p
+      LEFT JOIN "user" AS u ON u.id = p.responsible_user_id
+      ${whereSql}
+      ORDER BY p.created_at DESC
+      LIMIT 200
+    `;
+
     const { rows } = await pool.query(sql, params);
     res.json({ ok: true, data: rows });
   } catch (err) {
@@ -161,7 +182,24 @@ router.get("/projects/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ ok: false, msg: "bad id" });
 
-    const { rows } = await pool.query(`SELECT * FROM project WHERE id=$1`, [id]);
+    const { rows } = await pool.query(`
+      SELECT
+        p.id,
+        p.project_id,
+        p.name,
+        p.stage_id,
+        to_char(p.start_date::date, 'YYYY-MM-DD') AS start_date, 
+        p.estimated_days,                                        
+        to_char(p.due_date::date,   'YYYY-MM-DD') AS due_date, 
+        p.responsible_user_id,
+        p.responsible_user_name,
+        p.creator_user_id,
+        p.creator_user_name,
+        p.created_at,
+        p.updated_at
+      FROM project p
+      WHERE p.id = $1
+    `, [id]);
     if (rows.length === 0) return res.status(404).json({ ok: false, msg: "not found" });
 
     const row = rows[0];
@@ -219,7 +257,7 @@ router.patch("/projects/:id", async (req, res) => {
     const next_estimated_days = patch.estimated_days !== undefined ? patch.estimated_days : target.estimated_days;
 
     if (Number(next_stage_id) === 1 || Number(next_stage_id) === 2) {
-      if (!next_start_date || !dayjs(next_start_date).isValid()) {
+      if (!isYmd(next_start_date)) {
         return res.status(400).json({
           ok: false, code: "REQUIRE_START_DATE",
           message: "階段為設計或施工時，開始日 必填且需為有效日期(YYYY-MM-DD)"
@@ -247,7 +285,19 @@ router.patch("/projects/:id", async (req, res) => {
     fields.push(`updated_at = NOW()`);
 
     values.push(idNum);
-    const sql = `UPDATE project SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`;
+    const sql = `
+      UPDATE project
+      SET ${fields.join(", ")}
+      WHERE id = $${idx}
+      RETURNING
+        id, project_id, name, stage_id,
+        to_char(start_date::date, 'YYYY-MM-DD') AS start_date, 
+        estimated_days,
+        to_char(due_date::date,   'YYYY-MM-DD') AS due_date,  
+        responsible_user_id, responsible_user_name,
+        creator_user_id, creator_user_name,
+        created_at, updated_at
+    `;
     const { rows } = await pool.query(sql, values);
     if (rows.length === 0) return res.status(404).json({ ok: false, message: "專案不存在" });
 

@@ -1,0 +1,42 @@
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
+[stageplan] error: ReferenceError: plannedEndYmd is not defined
+    at computeOverdueStatus (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:82:28)
+    at C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:143:7
+    at Array.map (<anonymous>)
+    at buildPlan (C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:133:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async C:\Users\USER\Desktop\CODE\designer\routes\stageplan.js:197:20
