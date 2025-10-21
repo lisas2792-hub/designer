@@ -71,25 +71,25 @@ function allocateDays(totalDays, stages) {
 }
 
 /** 亮燈邏輯：只在超過到期日（>）時亮燈；等待階段完全不亮 */
-function computeOverdueStatus(plannedEndYmd, isCompleted, status) {
+function computeOverdueStatus(plannedEndYmd, isCompleted, flowStatus) {
   // 等待中不亮
-  if (status === 'waiting') return { status: 'none', overdue_days: 0 };
+  if (flowStatus === 'waiting') return { status: 'none', overdue_days: 0 };
 
   // 完成 → 綠燈
   if (isCompleted) return { status: 'green', overdue_days: 0 };
 
-    const today = dayjs().tz(TZ).startOf('day');
-    const due   = dayjs.tz(plannedEndYmd, TZ).startOf('day');
+  const today = dayjs().tz(TZ).startOf('day');
+  const due   = dayjs.tz(plannedEndYmd, TZ).startOf('day');
 
-    const overdueDays = today.diff(due, 'day');  // 今天 - 到期日（超過 = 正數）
+  const overdueDays = today.diff(due, 'day');  // 今天 - 到期日（超過 = 正數）
 
-    if (overdueDays > 0) {
-        // > 0 表示「今天已超過到期日」（到期日隔天開始亮）
-        return { status: overdueDays >= 7 ? 'red' : 'orange', overdue_days: overdueDays };
-    }
+  if (overdueDays > 0) {
+    // > 0 表示「今天已超過到期日」（到期日隔天開始亮）
+    return { status: overdueDays >= 7 ? 'red' : 'orange', overdue_days: overdueDays };
+  }
 
-    // 到期當天（overdueDays = 0）或未到期（<0）都不亮
-    return { status: 'none', overdue_days: 0 };
+  // 到期當天（overdueDays = 0）或未到期（<0）都不亮
+  return { status: 'none', overdue_days: 0 };
 }
 
 /** 從 project_text 讀取 1..8 的名稱（若缺就用預設），並附上預設比例 */
@@ -109,36 +109,32 @@ async function loadStagesMeta() {
   return list;
 }
 
-/** 從 project_text_upload 讀取完成集合（以是否存在紀錄判斷完成） */
-async function loadCompletedSet(projectIdText) {
+/** 從 project_text_upload 讀取完成集合（以是否存在紀錄判斷完成）
+ *  @param {string} projectNo 案件編號（文字，例如 "20250001"）
+ */
+async function loadCompletedSet(projectNo) {
   const sql = `
     SELECT DISTINCT text_no
     FROM project_text_upload
     WHERE project_id = $1
   `;
-  const { rows } = await pool.query(sql, [String(projectIdText)]);
+  const { rows } = await pool.query(sql, [String(projectNo)]);
   return new Set(rows.map(r => Number(r.text_no)));
 }
 
-/** 依 start/days 切出每段日期，依 project.stage_id 判斷等待/進行/完成 */
-async function buildPlan(projectIdText, startDate, totalDays) {
+/** [CHANGE] 依 start/days 切出每段日期
+ *  @param {string} projectNo         案件編號（文字，例如 "20250001"）
+ *  @param {string} startDate         'YYYY-MM-DD'
+ *  @param {number} totalDays         >0
+ *  @param {string} projectStageCode  'waiting' | 'design' | 'build' | 'Finished'（由路由查好丟進來）
+ */
+async function buildPlan(projectNo, startDate, totalDays, projectStageCode = 'waiting') {
   const meta = await loadStagesMeta();
-  const completed = await loadCompletedSet(projectIdText);
+  const completed = await loadCompletedSet(projectNo);
 
   const allocated = allocateDays(totalDays, meta).sort((a, b) => a.no - b.no);
   const start = dayjs.tz(startDate, TZ).startOf('day');
   let cursor = start;
-
-  // 取出 project.stage_id 並對照 project_stage
-  const sql = `
-    SELECT p.stage_id, ps.code AS stage_code
-    FROM project p
-    LEFT JOIN project_stage ps ON ps.id = p.stage_id
-    WHERE p.id = $1
-    LIMIT 1
-  `;
-  const { rows } = await pool.query(sql, [projectIdText]);
-  let stageCode = rows[0]?.stage_code || 'waiting';
 
   const stages = allocated.map(s => {
     const dur = Math.max(1, Number(s.days) || 1);
@@ -150,30 +146,29 @@ async function buildPlan(projectIdText, startDate, totalDays) {
     const isCompleted = completed.has(s.no);
 
     // 預設：根據整體專案 stage_code 判斷大類型
-    let currentStatus = 'waiting';
-    switch (stageCode) {
+    let flowStatus = 'waiting';
+    switch (projectStageCode) {
       case 'waiting':
-        currentStatus = 'waiting';
+        flowStatus = 'waiting';
         break;
       case 'design':
-        // 設計階段：前幾個圖面才算進行中
-        currentStatus = s.no <= 8 ? 'doing' : 'waiting';
+        // 設計階段：前幾個圖面才算進行中（此處 1..8 都在設計範圍，照你的需求）
+        flowStatus = 'doing';
         break;
       case 'build':
-        // 施工階段：全部可亮（只看是否完成）
-        currentStatus = 'doing';
+        flowStatus = 'doing';
         break;
       case 'Finished':
-        currentStatus = 'completed';
+        flowStatus = 'completed';
         break;
       default:
-        currentStatus = 'waiting';
+        flowStatus = 'waiting';
     }
 
     // 若該項有上傳檔案，也視為完成
-    if (isCompleted) currentStatus = 'completed';
+    if (isCompleted) flowStatus = 'completed';
 
-    const lamp = computeOverdueStatus(pe.format('YYYY-MM-DD'), currentStatus === 'completed', currentStatus);
+    const lamp = computeOverdueStatus(pe.format('YYYY-MM-DD'), isCompleted, flowStatus);
 
     return {
       no: s.no,
@@ -182,8 +177,8 @@ async function buildPlan(projectIdText, startDate, totalDays) {
       days: dur,
       planned_start: ps.format('YYYY-MM-DD'),
       planned_end: pe.format('YYYY-MM-DD'),
-      flow_status: currentStatus,  // waiting | doing | completed
-      status: lamp.status,         // none | green | orange | red
+      flow_status: flowStatus,   // waiting | doing | completed
+      status: lamp.status,       // none | green | orange | red
       overdue_days: lamp.overdue_days
     };
   });
@@ -196,32 +191,48 @@ async function buildPlan(projectIdText, startDate, totalDays) {
 // GET /api/projects/:id/stage-plan
 router.get('/projects/:id/stage-plan', attachUser, requireAuth, async (req, res) => {
   try {
-    const pidRaw = req.params.id; // project_text_upload 用
-    const pidNum = Number(pidRaw); // project 表用
+    const dbIdRaw = req.params.id;           // URL 吃的是「DB 的 id」
+    const dbIdNum = Number(dbIdRaw);
 
-    // 從 project 讀 start_date、estimated_days
-    let start = null, days = null;
-    if (Number.isFinite(pidNum) && pidNum > 0) {
-      const r1 = await pool.query(
-        `SELECT start_date, estimated_days FROM project WHERE id = $1 LIMIT 1`,
-        [pidNum]
+    // [CHANGE] 一次把需要的都撈出來：案件編號 project_id(文字)、start_date、estimated_days、stage_code
+    let projectNo = null;     // ← 案件編號（文字，例如 "20250001"）
+    let start = null;
+    let days = null;
+    let stageCode = 'waiting';
+
+    if (Number.isFinite(dbIdNum) && dbIdNum > 0) {
+      const r = await pool.query(
+        `
+        SELECT
+          p.project_id,       -- 文字編號
+          p.start_date,
+          p.estimated_days,
+          ps.code AS stage_code
+        FROM project p
+        LEFT JOIN project_stage ps ON ps.id = p.stage_id
+        WHERE p.id = $1
+        LIMIT 1
+        `,
+        [dbIdNum]
       );
-      if (r1.rows[0]) {
-        // ✅ 不做任何 toISOString()，確保不會被轉時區
-        start = r1.rows[0].start_date
-          ? dayjs(r1.rows[0].start_date).format('YYYY-MM-DD')
-          : null;
-        days = r1.rows[0].estimated_days
-          ? Number(r1.rows[0].estimated_days)
-          : null;
+      const row = r.rows[0];
+
+      if (row) {
+        projectNo = row.project_id ? String(row.project_id) : null;
+        start = row.start_date ? dayjs(row.start_date).format('YYYY-MM-DD') : null;
+        days  = row.estimated_days ? Number(row.estimated_days) : null;
+        stageCode = row.stage_code || 'waiting';
       }
     }
 
-    // Query 備援
+    // Query 備援（URL ?start= & ?days=）
     if (!start) start = req.query.start || null;
-    if (!days) days = req.query.days ? Number(req.query.days) : null;
+    if (!days)  days  = req.query.days ? Number(req.query.days) : null;
 
     // 驗證
+    if (!projectNo) {
+      return res.status(400).json({ ok: false, msg: '找不到對應的案件編號(project_id)' });
+    }
     if (!start || !dayjs(start, 'YYYY-MM-DD', true).isValid()) {
       return res.status(400).json({ ok: false, msg: 'start(YYYY-MM-DD) 必填/格式錯誤' });
     }
@@ -229,12 +240,13 @@ router.get('/projects/:id/stage-plan', attachUser, requireAuth, async (req, res)
       return res.status(400).json({ ok: false, msg: 'days(>0) 必填' });
     }
 
-    const stages = await buildPlan(String(pidRaw), start, days);
+    // [CHANGE] 傳入「案件編號(文字) + 階段代碼」給 buildPlan
+    const stages = await buildPlan(projectNo, start, days, stageCode);
 
     res.json({
       ok: true,
       data: {
-        project_id: String(pidRaw),
+        project_id: projectNo,   // [CHANGE] 回傳案件編號（不是 DB id）
         start_date: start,
         total_days: days,
         stages

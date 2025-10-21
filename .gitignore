@@ -1,3 +1,6 @@
 .designer\
 !designer\designergithub
 !.designer\.gitignore
+node_modules/
+logs/
+logs/*.log

@@ -1,8 +1,0 @@
-[dotenv@17.2.2] injecting env (4) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
-[BOOT main] pid: 19380 cwd: C:\Users\USER\Desktop\CODE\designer
-[routes] responsibleuser loaded
-[ENV] { NODE_ENV: undefined, isProd: false }
-API on http://0.0.0.0:3000 [build:1760528492010]
-   Try: /health
-   Try: /api/db/ping
-[DB] Connected successfully ✅

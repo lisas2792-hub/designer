@@ -42,6 +42,10 @@ const { attachUser, requireAuth, requireAdmin } = require("./middleware/auth");
 const stagePlanRoutes   = require('./routes/stageplan');
 const stageUploadRoutes = require('./routes/stageupload');
 
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+  ? path.resolve(process.env.UPLOAD_ROOT)
+  : path.resolve(process.cwd(), 'public', 'uploads');
+
 
 // CJS (CommonJS)
 // v8 正確匯入
@@ -69,11 +73,6 @@ app.use(cors({
 }));
 
 
-// 靜態檔案服務（上傳的檔案）
-app.use(process.env.PUBLIC_UPLOAD_BASE || '/uploads',
-  express.static(process.env.UPLOAD_ROOT || '/var/www/uploads', { maxAge: '7d' }));
-
-
 // Helmet（開發期允許 inline，之後可移除 unsafe-inline）
 app.use(helmet({
   contentSecurityPolicy: {
@@ -92,6 +91,7 @@ app.use((req, _res, next) => {
   req.db = pool;
   next();
 });
+
 
 // 每次請求都印 log
 // app.use((req, _res, next) => {
@@ -274,6 +274,10 @@ app.use('/api', stageUploadRoutes);
 
 app.use('/api', stagePlanRoutes);
 
+// 靜態檔案服務（上傳的檔案）
+app.use('/uploads', express.static(UPLOAD_ROOT));
+
+
 // 其餘登入的 API 集中到這裡（受保護）
 // app.use("/api", requireAuth, [
 //   meRoutes,                 // /api/...（如 /api/auth/me 或 /api/me 之類）
@@ -305,12 +309,12 @@ app.use((err, req, res, next) => {
 
 
 // ------- 啟動 -------
-const port = Number(process.env.PORT || 3000);
-app.listen(port, "0.0.0.0", () => {
-  console.log(`API on http://0.0.0.0:${port} [build:${Date.now()}]`);
-  console.log(`   Try: /health`);
-  console.log(`   Try: /api/db/ping`);
-});
+// const port = Number(process.env.PORT || 3000);
+// app.listen(port, "0.0.0.0", () => {
+//   console.log(`API on http://0.0.0.0:${port} [build:${Date.now()}]`);
+//   console.log(`   Try: /health`);
+//   console.log(`   Try: /api/db/ping`);
+// });
 
 
 

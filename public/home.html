@@ -443,6 +443,8 @@
         plan:   (projectDbId) => API_BASE + `/api/projects/${projectDbId}/stage-plan`,
         done:   (projectDbId, stageNo) => API_BASE + `/api/projects/${projectDbId}/stages/${stageNo}/complete`,
         list:   (projectDbId) => API_BASE + `/api/projects/${projectDbId}/stages`,
+        // [ADD] 上傳：要用「案件編號」(p.project_id) 不是 DB id
+        upload: (projectNo,  stageNo) => API_BASE + `/api/projects/${projectNo}/stages/${stageNo}/upload`,
       },
     };
 
@@ -573,26 +575,28 @@
             const no = Number(cell.dataset.stageNo || 0);
             if(!no) return;
 
-            // 這裡先顯示「上傳預留」，現在只送出完成紀錄
-            try{
-              const res = await apiFetch(API.stage.done(p.id, no), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ file_url: null }) // 先留空，之後串真實上傳
-              });
-              const json = await res.json().catch(()=>null);
-              if(!res.ok || !json || json.ok === false){
-                alert('完成失敗，請稍後重試'); return;
-              }
-              // 只把本格變綠（done），不動其他格
-              cell.dataset.state = 'done';
+            window.openStageUpload(p.project_id, no, cell);
 
-              // 你要「點了就開上傳」可以在這裡呼叫彈窗或顯示區塊（先留白）
-              // Swal.fire({ icon: 'success', title: '已標記完成', text: '之後可在此上傳檔案' });
-            }catch(e){
-              console.error('[stage done] failed', e);
-              alert('網路異常，請稍後重試');
-            }
+            // 這裡先顯示「上傳預留」，現在只送出完成紀錄
+            // try{
+            //   const res = await apiFetch(API.stage.done(p.id, no), {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ file_url: null }) // 先留空，之後串真實上傳
+            //   });
+            //   const json = await res.json().catch(()=>null);
+            //   if(!res.ok || !json || json.ok === false){
+            //     alert('完成失敗，請稍後重試'); return;
+            //   }
+            //   // 只把本格變綠（done），不動其他格
+            //   cell.dataset.state = 'done';
+
+            //   // 你要「點了就開上傳」可以在這裡呼叫彈窗或顯示區塊（先留白）
+            //   // Swal.fire({ icon: 'success', title: '已標記完成', text: '之後可在此上傳檔案' });
+            // }catch(e){
+            //   console.error('[stage done] failed', e);
+            //   alert('網路異常，請稍後重試');
+            // }
           });
         });
       }
@@ -957,10 +961,6 @@
   </script>
 
 
-
-
-
-
   <!-- <script>
   /**
    * 必填版本：start_date 與 estimated_days 都必填
@@ -1007,8 +1007,6 @@
     return isConfirmed ? value : null;
   }
   </script> -->
-
-
 
 
 
@@ -1485,5 +1483,85 @@
       }
     });
   </script>
+
+  <!-- 上傳照片 Modal 與邏輯 -->
+  <input id="uploadInput" type="file" accept="image/*" multiple style="display:none" />
+
+  <div id="uploadModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); align-items:center; justify-content:center; z-index: 2000;">
+    <div style="background:#fff; padding:16px; width:360px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
+      <h3 style="margin-top:0">上傳照片</h3>
+      <p id="uploadHint" style="font-size:14px;color:#666;margin:6px 0 12px"></p>
+      <div style="display:flex; gap:8px;">
+        <button id="chooseFileBtn" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer">選擇檔案</button>
+        <button id="cancelUploadBtn" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer">取消</button>
+      </div>
+      <div id="uploadStatus" style="margin-top:12px; font-size:13px; color:#333"></div>
+    </div>
+  </div>
+
+  <script>
+    // [ADD] 上傳對話框控制器（只初始化一次）
+    (function initUploadOnce(){
+      if (window.__UPLOAD_WIRED__) return;
+      window.__UPLOAD_WIRED__ = true;
+
+      const uploadModal = document.getElementById('uploadModal');
+      const uploadInput = document.getElementById('uploadInput');
+      const chooseBtn   = document.getElementById('chooseFileBtn');
+      const cancelBtn   = document.getElementById('cancelUploadBtn');
+      const statusBox   = document.getElementById('uploadStatus');
+      const hintBox     = document.getElementById('uploadHint');
+
+      // 目前目標
+      let current = { projectNo: null, stageNo: null, cellEl: null };
+
+      // 開窗：帶入 案件編號 + 階段 + 哪一格DOM
+      window.openStageUpload = function(projectNo, stageNo, cellEl){
+        current = { projectNo, stageNo, cellEl };
+        hintBox.textContent = `案件編號：${projectNo}　階段：${stageNo}`;
+        statusBox.textContent = '';
+        uploadInput.value = '';
+        uploadModal.style.display = 'flex';
+      };
+
+      function closeUpload(){
+        uploadModal.style.display = 'none';
+        current = { projectNo: null, stageNo: null, cellEl: null };
+      }
+
+      chooseBtn.addEventListener('click', () => uploadInput.click());
+      cancelBtn.addEventListener('click', () => closeUpload());
+
+      // 選好檔案 → 立即上傳
+      uploadInput.addEventListener('change', async () => {
+        if (!uploadInput.files || uploadInput.files.length === 0) return;
+
+        statusBox.textContent = '上傳中…';
+        try {
+          const fd = new FormData();
+          for (const f of uploadInput.files) fd.append('files', f);
+
+          // **注意**：用「案件編號」(current.projectNo) 去打 /upload
+          // 自動帶 Authorization
+          const resp = await apiFetch(API.stage.upload(current.projectNo, current.stageNo), {
+            method: 'POST',
+            body: fd   // 不要自己設定 Content-Type，讓瀏覽器帶 boundary
+          });
+
+          const data = await resp.json().catch(()=>({}));
+          if (!resp.ok || !data.ok) throw new Error(data.error || '上傳失敗');
+
+          // 成功 → 把該格變綠（data-state="done"）
+          if (current.cellEl) current.cellEl.dataset.state = 'done';
+
+          statusBox.textContent = `✅ 已上傳 ${data.files?.length || uploadInput.files.length} 個檔案`;
+          setTimeout(() => closeUpload(), 700);
+        } catch (err) {
+          statusBox.textContent = `❌ 錯誤：${err.message || err}`;
+        }
+      });
+    })();
+  </script>
+
 </body>
 </html>

@@ -1,163 +1,260 @@
-// routes/stageupload.js
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
-const { Storage } = require('@google-cloud/storage');
+"use strict";
 
-const dayjs = require('dayjs');
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const dayjs = require("dayjs");
+const multer = require("multer");
+const mime = require("mime");
+const { pool } = require("../db");
+const { attachUser, requireAuth } = require("../middleware/auth");
+
 const router = express.Router();
-const { pool } = require('../db');
-const { attachUser, requireAuth } = require('../middleware/auth');
 
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT || '/var/www/uploads';
-const PUBLIC_BASE = process.env.PUBLIC_UPLOAD_BASE || '/uploads';
-const MAX_MB = Number(process.env.MAX_UPLOAD_MB || 15);
-const GCS_BUCKET = process.env.GCS_BUCKET || '';
+/* ================= 路徑與環境 ================= */
+const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT || "public/uploads");
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20);
+const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
+  "image/jpeg,image/png,image/webp,image/gif,application/pdf")
+  .split(",")
+  .map((s) => s.trim().toLowerCase());
 
-/* ---------- 安全設定 ---------- */
-const ALLOWED_MIME = new Set([
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'
-]);
+const CLOUD_TARGET = (process.env.CLOUD_TARGET || "NONE").toUpperCase(); // NONE|GCS|DRIVE|BOTH
 
-function fileFilter(_req, file, cb) {
-  if (!ALLOWED_MIME.has(file.mimetype)) {
-    return cb(new Error('不支援的檔案格式'));
-  }
-  cb(null, true);
+// GCS
+const GCS_BUCKET = process.env.GCS_BUCKET;
+const GCS_PREFIX = process.env.GCS_PREFIX || "";
+
+// Drive
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
+
+// 確保根目錄存在
+fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+
+/* ================= 工具 ================= */
+function ensureStageDir(projectNo, stageNo) {
+  const dir = path.join(UPLOAD_ROOT, String(projectNo), String(stageNo));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+// function ensureStageDir(projectNo, stageNo) {
+//   const stageName = STAGE_NAMES[stageNo] || `stage_${stageNo}`;
+//   const dir = path.join(UPLOAD_ROOT, String(projectNo), stageName); // ← 這裡可換命名結構
+//   fs.mkdirSync(dir, { recursive: true });
+//   return dir;
+// }
+
+function toPublicUrl(absPath) {
+  const rel = path.relative(UPLOAD_ROOT, absPath).replace(/\\/g, "/");
+  return `/uploads/${rel}`;
 }
 
-/* ---------- Local：diskStorage ---------- */
-const diskStorage = multer.diskStorage({
-  destination: async (req, _file, cb) => {
-    const { projectId } = req.params;
-    const dir = path.join(UPLOAD_ROOT, String(projectId));
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+/* ================= Multer（磁碟存檔） ================= */
+const storage = multer.diskStorage({
+  destination: (req, _file, cb) => {
+    const { projectNo, stageNo } = req.params;
+    try {
+      const dir = ensureStageDir(projectNo, stageNo);
+      cb(null, dir);
+    } catch (e) {
+      cb(e);
+    }
   },
   filename: (_req, file, cb) => {
-    const ts = dayjs().format('YYYYMMDD_HHmmss_SSS');
-    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-    cb(null, `${ts}${ext}`);
+    const ext = path.extname(file.originalname || "");
+    const base = path
+      .basename(file.originalname || "file", ext)
+      .replace(/[^\w.\-]+/g, "_");
+    const ts = dayjs().format("YYYYMMDD_HHmmss_SSS");
+    cb(null, `${ts}_${base}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => {
+    const m = (file.mimetype || "").toLowerCase();
+    if (!ALLOWED_MIME.includes(m)) return cb(new Error("不允許的檔案格式"));
+    cb(null, true);
+  },
+});
+
+/* ================== 雲端：GCS 上傳 ================== */
+let gcsStorage = null;
+if ((CLOUD_TARGET === "GCS" || CLOUD_TARGET === "BOTH") && GCS_BUCKET) {
+  try {
+    const { Storage } = require("@google-cloud/storage");
+    gcsStorage = new Storage(); // GOOGLE_APPLICATION_CREDENTIALS 由環境變數指定
+  } catch (e) {
+    console.warn("[GCS] 套件載入失敗，略過 GCS：", e.message);
   }
-});
-
-/* ---------- GCS：memoryStorage + 上傳 ---------- */
-const memUpload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter,
-  limits: { fileSize: MAX_MB * 1024 * 1024 }
-});
-
-let gcs = null;
-if (GCS_BUCKET) {
-  gcs = new Storage(); // 依 GOOGLE_APPLICATION_CREDENTIALS 自動讀取
 }
 
-/* 共同：本機上傳器（disk） */
-const diskUpload = multer({
-  storage: diskStorage,
-  fileFilter,
-  limits: { fileSize: MAX_MB * 1024 * 1024 }
-});
+/**
+ * 上傳到 GCS
+ * @param {string} absPath 本機絕對路徑
+ * @param {string} projectNo
+ * @param {number} stageNo
+ * @returns {Promise<{ok:boolean, url?:string, error?:string}>}
+ */
+async function uploadToGCS(absPath, projectNo, stageNo) {
+  if (!gcsStorage || !GCS_BUCKET) return { ok: false, error: "GCS 未設定" };
+  try {
+    const fileName = path.basename(absPath);
+    const prefix = GCS_PREFIX ? `${GCS_PREFIX}/` : "";
+    const dst = `${prefix}${projectNo}/${stageNo}/${fileName}`;
 
-/* ---------- 寫 DB（UPSERT） ---------- */
-async function upsertUpload({ projectId, stageNo, fileUrl }) {
-  const sql = `
-    INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at, created_at, updated_at)
-    VALUES ($1, $2, $3, NOW(), NOW(), NOW())
-    ON CONFLICT (project_id, text_no) DO UPDATE
-    SET file_url = EXCLUDED.file_url,
-        completed_at = EXCLUDED.completed_at,
-        updated_at = NOW()
-    RETURNING project_id, text_no, file_url, completed_at;
-  `;
-  const { rows } = await pool.query(sql, [String(projectId), Number(stageNo), fileUrl || null]);
-  return rows[0];
+    const bucket = gcsStorage.bucket(GCS_BUCKET);
+    await bucket.upload(absPath, {
+      destination: dst,
+      resumable: false,
+      metadata: {
+        contentType: mime.getType(absPath) || "application/octet-stream",
+        cacheControl: "public, max-age=31536000, immutable",
+      },
+    });
+
+    // 若 bucket 設定是 public，這個 URL 可直接存取
+    const url = `https://storage.googleapis.com/${GCS_BUCKET}/${encodeURI(dst)}`;
+    return { ok: true, url };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
 }
 
-/* ---------- API：完成 + 上傳 ---------- */
-/**
- * POST /api/projects/:projectId/stages/:stageNo/upload?dest=local|gcs
- * multipart/form-data; field: photo
- */
-router.post(
-  '/projects/:projectId/stages/:stageNo/upload',
-  attachUser, requireAuth,
-  async (req, res, next) => {
-    try {
-      const dest = (req.query.dest || 'local').toString().toLowerCase();
-      if (dest === 'gcs' && !gcs) {
-        return res.status(400).json({ ok: false, msg: '未設定 GCS_BUCKET，無法使用 gcs 上傳' });
-      }
-
-      // 選擇對應的 multer
-      const uploader = (dest === 'gcs') ? memUpload.single('photo') : diskUpload.single('photo');
-      uploader(req, res, async (err) => {
-        if (err) {
-          return res.status(400).json({ ok: false, msg: err.message || '上傳失敗' });
-        }
-
-        const { projectId, stageNo } = req.params;
-
-        let fileUrl = null;
-
-        if (dest === 'local') {
-          if (!req.file || !req.file.path) {
-            return res.status(400).json({ ok: false, msg: '找不到檔案' });
-          }
-          // 建立對外可存取的 URL（靜態服務路徑）
-          const relPath = path.relative(UPLOAD_ROOT, req.file.path).split(path.sep).join('/');
-          fileUrl = `${PUBLIC_BASE}/${relPath}`; // e.g. /uploads/24/20250101_120000_000.jpg
-        } else {
-          // gcs：把 buffer 上傳到 bucket
-          if (!req.file || !req.file.buffer) {
-            return res.status(400).json({ ok: false, msg: '找不到檔案' });
-          }
-          const ts = dayjs().format('YYYYMMDD_HHmmss_SSS');
-          const ext = path.extname(req.file.originalname || '').toLowerCase() || '.jpg';
-          const objectName = `${projectId}/${ts}${ext}`;
-
-          const bucket = gcs.bucket(GCS_BUCKET);
-          const file = bucket.file(objectName);
-
-          await file.save(req.file.buffer, {
-            contentType: req.file.mimetype,
-            public: true, // 若你要私有存取，改成 false + 產生簽章網址
-            metadata: { cacheControl: 'public, max-age=31536000' }
-          });
-
-          fileUrl = `https://storage.googleapis.com/${GCS_BUCKET}/${encodeURIComponent(objectName)}`;
-        }
-
-        // 寫入/覆蓋 DB
-        const row = await upsertUpload({ projectId, stageNo, fileUrl });
-
-        return res.json({ ok: true, data: row });
-      });
-    } catch (e) {
-      next(e);
-    }
+/* ================== 雲端：Google Drive 上傳 ================== */
+let drive = null;
+if ((CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") && GDRIVE_FOLDER_ID) {
+  try {
+    const { google } = require("googleapis");
+    const auth = new google.auth.GoogleAuth({
+      scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"],
+    });
+    drive = google.drive({ version: "v3", auth });
+  } catch (e) {
+    console.warn("[Drive] 套件/認證載入失敗，略過 Drive：", e.message);
   }
-);
+}
 
-/* ---------- API：只標記完成（無檔案）保留給你既有流程 ---------- */
 /**
- * POST /api/projects/:projectId/stages/:stageNo/complete
- * body: { file_url?: string|null }
+ * 上傳到 Google Drive 並設定任何人可讀
+ * @param {string} absPath
+ * @param {string} projectNo
+ * @param {number} stageNo
+ * @returns {Promise<{ok:boolean, url?:string, fileId?:string, error?:string}>}
  */
+async function uploadToDrive(absPath, projectNo, stageNo) {
+  if (!drive || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定" };
+  try {
+    const fileName = path.basename(absPath);
+    const fileMeta = {
+      name: `${projectNo}_${stageNo}_${fileName}`,
+      parents: [GDRIVE_FOLDER_ID],
+    };
+    const media = {
+      mimeType: mime.getType(absPath) || "application/octet-stream",
+      body: fs.createReadStream(absPath),
+    };
+    const createRes = await drive.files.create({
+      resource: fileMeta,
+      media,
+      fields: "id, name, webViewLink, webContentLink",
+      supportsAllDrives: true,
+    });
+
+    const fileId = createRes.data.id;
+
+    // 設定公開讀取（連結可看）
+    await drive.permissions.create({
+      fileId,
+      resource: { role: "reader", type: "anyone" },
+      supportsAllDrives: true,
+    });
+
+    // 取可下載連結（或用 webViewLink）
+    const getRes = await drive.files.get({
+      fileId,
+      fields: "id, webViewLink, webContentLink",
+      supportsAllDrives: true,
+    });
+
+    const url = getRes.data.webContentLink || getRes.data.webViewLink;
+    return { ok: true, url, fileId };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+/* ================== 上傳 API ================== */
 router.post(
-  '/projects/:projectId/stages/:stageNo/complete',
-  attachUser, requireAuth,
+  "/projects/:projectNo/stages/:stageNo/upload",
+  attachUser,
+  requireAuth,
+  upload.array("files", 10),
   async (req, res) => {
     try {
-      const { projectId, stageNo } = req.params;
-      const { file_url } = req.body || {};
-      const row = await upsertUpload({ projectId, stageNo, fileUrl: file_url || null });
-      res.json({ ok: true, data: row });
-    } catch (e) {
-      console.error('[stage complete] error:', e);
-      res.status(500).json({ ok: false, msg: 'server error' });
+      const projectNo = String(req.params.projectNo || "");
+      const stageNo = Number(req.params.stageNo);
+
+      if (!projectNo || !Number.isFinite(stageNo) || stageNo <= 0) {
+        return res.status(400).json({ ok: false, error: "參數錯誤" });
+      }
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ ok: false, error: "沒有檔案" });
+      }
+
+      const savedLocal = [];
+      const savedCloud = []; // 收集雲端結果（每檔一筆）
+
+      // 每檔寫 DB（以本機 URL 為主，若你想改存雲端 URL，下面有說明）
+      for (const f of req.files) {
+        const localUrl = toPublicUrl(f.path);
+        // 先 upsert 本機 URL（確保「完成」邏輯不被雲端失敗影響）
+        await pool.query(
+          `
+          INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at)
+          VALUES ($1, $2, $3, NOW())
+          ON CONFLICT (project_id, text_no)
+          DO UPDATE SET file_url = EXCLUDED.file_url,
+                        completed_at = NOW()
+          `,
+          [projectNo, stageNo, localUrl]
+        );
+
+        const cloud = { localUrl };
+
+        // 依設定推雲端（不影響主流程）
+        if (CLOUD_TARGET === "GCS" || CLOUD_TARGET === "BOTH") {
+          const r = await uploadToGCS(f.path, projectNo, stageNo);
+          cloud.gcs = r;
+          // 若你想「DB 優先存雲端 URL」→ r.ok 再回寫一次：
+          // if (r.ok) {
+          //   await pool.query(
+          //     `UPDATE project_text_upload SET file_url=$1, updated_at=NOW() WHERE project_id=$2 AND text_no=$3`,
+          //     [r.url, projectNo, stageNo]
+          //   );
+          // }
+        }
+        if (CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") {
+          const r = await uploadToDrive(f.path, projectNo, stageNo);
+          cloud.drive = r;
+          // 同上，若偏好 DB 儲存 Drive 連結可在 r.ok 時回寫
+        }
+
+        savedLocal.push({ url: localUrl, name: f.originalname, size: f.size, mime: f.mimetype });
+        savedCloud.push(cloud);
+      }
+
+      return res.json({
+        ok: true,
+        files: savedLocal,  // 本機對外 URL（可立即預覽）
+        cloud: savedCloud,  // 雲端結果詳細（成功/失敗）
+        cloudTarget: CLOUD_TARGET,
+      });
+    } catch (err) {
+      console.error("[stage upload] error:", err);
+      return res.status(500).json({ ok: false, error: err?.message || "上傳失敗" });
     }
   }
 );
