@@ -42,9 +42,7 @@ const { attachUser, requireAuth, requireAdmin } = require("./middleware/auth");
 const stagePlanRoutes   = require('./routes/stageplan');
 const stageUploadRoutes = require('./routes/stageupload');
 
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT
-  ? path.resolve(process.env.UPLOAD_ROOT)
-  : path.resolve(process.cwd(), 'public', 'uploads');
+const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT);
 
 
 // CJS (CommonJS)
@@ -278,6 +276,7 @@ app.use('/api', stagePlanRoutes);
 app.use('/uploads', express.static(UPLOAD_ROOT));
 
 
+
 // 其餘登入的 API 集中到這裡（受保護）
 // app.use("/api", requireAuth, [
 //   meRoutes,                 // /api/...（如 /api/auth/me 或 /api/me 之類）
@@ -309,15 +308,10 @@ app.use((err, req, res, next) => {
 
 
 // ------- 啟動 -------
-// const port = Number(process.env.PORT || 3000);
-// app.listen(port, "0.0.0.0", () => {
-//   console.log(`API on http://0.0.0.0:${port} [build:${Date.now()}]`);
-//   console.log(`   Try: /health`);
-//   console.log(`   Try: /api/db/ping`);
-// });
+const port = Number(process.env.PORT || 3000);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`API on http://0.0.0.0:${port} [build:${Date.now()}]`);
+  console.log(`   Try: /health`);
+  console.log(`   Try: /api/db/ping`);
+});
 
-
-
-// // ------- 啟動(簡略) -------
-// const port = Number(process.env.PORT || 3000);
-// app.listen(port, "0.0.0.0", () => console.log(`API on http://0.0.0.0:${port}`));

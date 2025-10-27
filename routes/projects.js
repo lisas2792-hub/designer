@@ -1,21 +1,37 @@
-// 處理專案project
-// middleware 檔案不用再引入（server.js 已全域掛）
+// routes/projects.js
+"use strict";
 
-const express = require('express');
-const router = express.Router();
+/**
+ * ★ 本檔只保留路由／驗證／流程控制
+ * ★ 所有 SQL 已移至 repositories/projectRepo.js 與 repositories/userRepo.js
+ */
+
+const { Router } = require("express");
 const dayjs = require("dayjs");
 const { pool } = require("../db");
+const { attachUser, requireAuth } = require("../middleware/auth"); // ★ NEW: 掛中介層
 
-const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const {
+  insertProject,
+  listProjects,
+  getProjectById,
+  getProjectForPatch,
+  updateProjectDynamic,
+  deleteProjectById,
+} = require("../repositories/projectRepo");
 
-/** 角色判斷：支援英文代碼與中文標籤 */
-function isAdmin(me){
-  const r = (me?.role_code || me?.role || '').toString().trim();
-  return r === 'admin' || r === '系統管理員';
+const {
+  getActiveUserById,
+  findUserIdByNameOrUsername,
+  getUserNameById,
+} = require("../repositories/userRepo");
+
+const router = Router();
+
+/** 統一把空字串 -> null（前端常丟 "" 進來） */
+function toNull(v) {
+  return v === "" || v === undefined ? null : v;
 }
-
-/** 讓空字串 -> null，前端容易丟 "" 進來 */
-function toNull(v) { return (v === "" || v === undefined) ? null : v }
 
 /** 後端統一計算到期日 */
 function calcDueDate(start_date, estimated_days) {
@@ -24,188 +40,215 @@ function calcDueDate(start_date, estimated_days) {
   if (!d.isValid()) return null;
   const days = Number(estimated_days);
   if (!Number.isFinite(days) || days <= 0) return null;
-  // 規則：到期日 = 起始日 + (天數 - 1)
-  return d.add(days - 1, "day").format("YYYY-MM-DD");
+  return d.add(days, "day").format("YYYY-MM-DD");
 }
 
-// 新增專案 API
-router.post("/projects", async (req, res) => {
-  try {
-    const me = req.user; // { id, username, role: 'admin' | 'member' }
+/** 角色是否為管理員 */
+function isAdminRole(role) {
+  if (!role) return false;
+  const r = String(role).toLowerCase();
+  // 依你們實際角色字串再增減
+  return new Set(["admin", "system", "superadmin", "owner"]).has(r);
+}
 
-    // 先把 body 取出來（此時才有 creator_user_id / creator_user_name 可用）
+/** -------------------------------------------
+ *  POST /api/projects  建立專案
+ *  只用 *_user_id 當 FK；姓名欄位純展示（由 DB 讀 name）
+ * ------------------------------------------- */
+router.post("/projects", requireAuth, async (req, res) => { // ★ 建議保護
+  const client = await pool.connect();
+  try {
+    console.log("[REQ BODY /api/projects]", JSON.stringify(req.body, null, 2));
+
     const {
-      project_id,             // 必填
-      name,                   // 必填
-      stage_id,               // 必填（0=等待,1=設計,2=施工）
-      start_date,             // stage_id為1或2時，必填
-      estimated_days,         // stage_id為1或2時，必填
-      responsible_user_id,    // 可空
-      responsible_user_name,  // 可空
-      creator_user_id,        // 前端帶；若沒帶，下面會用 name/username 反查
-      creator_user_name       // 可空（備援查 id 用）
+      project_id,
+      name,
+      stage_id,
+      start_date,
+      estimated_days,
+      responsible_user_id,
+      creator_user_id, // 一般從 req.user.id 來，這裡保留相容
     } = req.body || {};
 
-    // 先把 stage 驗好
     const stageIdNum = Number(stage_id);
     if (!project_id || !name || !Number.isFinite(stageIdNum)) {
       return res.status(400).json({
         ok: false,
         code: "BAD_REQUEST",
-        message: "缺少必填欄位(project_id/name/stage_id)"
+        message: "缺少必填欄位(project_id/name/stage_id)",
       });
     }
 
-    // 非 admin：無論前端傳什麼，一律只允許顯示指派給自己的專案
-    let finalResponsibleUserId = isAdmin(me)
-      ? (responsible_user_id === "" || responsible_user_id == null ? null : responsible_user_id)
-      : me.id;
+    // ★ 若前端沒送 creator_user_id，就用登入者
+    let creatorId = Number(creator_user_id);
+    if (!Number.isFinite(creatorId) && req.user?.id) {
+      creatorId = Number(req.user.id);
+    }
+    if (!Number.isFinite(creatorId) && req.body?.creator_user_name) {
+      const maybeId = await findUserIdByNameOrUsername(pool, req.body.creator_user_name);
+      creatorId = maybeId ?? null;
+    }
+    if (!Number.isFinite(creatorId)) {
+      return res.status(400).json({
+        ok: false,
+        code: "NO_CREATOR",
+        message: "找不到建立者（未登入或無法解析使用者）",
+      });
+    }
 
-    // 設計/施工階段必填 start_date / estimated_days且有效
+    await client.query("BEGIN");
+
+    const creator = await getActiveUserById(client, creatorId);
+    if (!creator) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        code: "CREATOR_NOT_FOUND",
+        message: "建立者不存在或未啟用",
+      });
+    }
+    const creatorNameForDisplay = (creator.name || "").trim();
+    if (!creatorNameForDisplay) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        code: "CREATOR_NAME_MISSING",
+        message: "建立者在使用者表的姓名(name)為空，請先補上姓名",
+      });
+    }
+
+    // ★ 解析負責人（可空）
+    let respId =
+      responsible_user_id === "" || responsible_user_id == null
+        ? null
+        : Number(responsible_user_id);
+    let respNameForDisplay = null;
+
+    if (Number.isFinite(respId)) {
+      const nameRow = await getUserNameById(client, respId);
+      if (nameRow && (nameRow.name || "").trim()) {
+        respNameForDisplay = nameRow.name.trim();
+      } else {
+        respId = null;
+        respNameForDisplay = null;
+      }
+    } else if (req.body?.responsible_user_name) {
+      const maybeId = await findUserIdByNameOrUsername(client, req.body.responsible_user_name);
+      if (maybeId) {
+        const nameRow = await getUserNameById(client, maybeId);
+        if (nameRow && (nameRow.name || "").trim()) {
+          respId = maybeId;
+          respNameForDisplay = nameRow.name.trim();
+        }
+      }
+    }
+
+    // ★ 設計/施工階段檢查
     if (stageIdNum === 1 || stageIdNum === 2) {
-      if (!isYmd(start_date)) {
+      if (!start_date || !dayjs(start_date).isValid()) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
           ok: false,
           code: "REQUIRE_START_DATE",
-          message: "階段為設計或施工時，開始日 必填且需為有效日期(YYYY-MM-DD)"
+          message: "階段為設計或施工時，開始日 必填且需為有效日期(YYYY-MM-DD)",
         });
       }
       if (!Number.isFinite(Number(estimated_days)) || Number(estimated_days) <= 0) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
           ok: false,
           code: "REQUIRE_ESTIMATED_DAYS",
-          message: "階段為設計或施工時，工期天數 必填且必須為正整數"
+          message: "階段為設計或施工時，工期天數 必填且必須為正整數",
         });
       }
     }
 
-    // 正規化欄位
-    const _start_date = (start_date === "" || start_date === undefined) ? null : start_date;
+    // ★ 正規化 + 計算到期
+    const _start_date = toNull(start_date);
     const _estimated_days =
-      (estimated_days === "" || estimated_days === undefined || estimated_days === null)
-        ? null : Number(estimated_days);
+      estimated_days === "" || estimated_days == null ? null : Number(estimated_days);
     const _due_date = calcDueDate(_start_date, _estimated_days);
-    const _responsible_user_name = toNull(responsible_user_name);
-    const _creator_user_name = toNull(creator_user_name);
 
-    const sql = `
-      INSERT INTO project
-      (project_id, name, stage_id, start_date, estimated_days, due_date,
-      responsible_user_id, responsible_user_name, creator_user_id, creator_user_name)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING
-        id, project_id, name, stage_id,
-        to_char(start_date::date, 'YYYY-MM-DD') AS start_date, 
-        estimated_days,
-        to_char(due_date::date, 'YYYY-MM-DD')   AS due_date,
-        responsible_user_id, responsible_user_name,
-        creator_user_id, creator_user_name,
-        created_at, updated_at
-    `;
-
-    const params = [
-      String(project_id),
-      String(name),
-      stageIdNum,
-      _start_date,
-      _estimated_days,
-      _due_date,
-      finalResponsibleUserId,     // <- 可能是 null...
-      _responsible_user_name,
-      me.id,                      // <- 不轉 Number，直接用 me.id（字串）
-      me.username
-    ];
-
-    const { rows } = await pool.query(sql, params);
-    return res.status(201).json({ ok: true, data: rows[0] });
-
-  } catch (err) {
-    console.error("[POST /api/projects] failed:", err);
-    if (err.code === '23505') { // PostgreSQL unique_violation
-      return res.status(409).json({ ok: false, code: 'DUPLICATE', message: '此編號已存在' });
-    }
-    return res.status(500).json({
-      ok: false,
-      code: err.code || "INTERNAL_ERROR",
-      message: err.detail || err.message || "Create failed"
+    const inserted = await insertProject(client, {
+      project_id: String(project_id),
+      name: String(name),
+      stage_id: stageIdNum,
+      start_date: _start_date,
+      estimated_days: _estimated_days,
+      due_date: _due_date,
+      responsible_user_id: respId,
+      responsible_user_name: respNameForDisplay, // 展示用
+      creator_user_id: creatorId,
+      creator_user_name: creatorNameForDisplay, // 展示用
     });
+
+    await client.query("COMMIT");
+    return res.status(201).json({ ok: true, data: inserted });
+  } catch (err) {
+    try { await pool.query("ROLLBACK"); } catch {}
+    const snapshot = {
+      code: err.code,
+      constraint: err.constraint,
+      detail: err.detail,
+      body: {
+        creator_user_id: req.body?.creator_user_id,
+        creator_user_name: req.body?.creator_user_name,
+        responsible_user_id: req.body?.responsible_user_id,
+        responsible_user_name: req.body?.responsible_user_name,
+      },
+    };
+    console.error("[POST /api/projects] failed (snapshot):", JSON.stringify(snapshot, null, 2));
+
+    if (err.code === "23505") {
+      return res.status(409).json({ ok: false, code: "DUPLICATE", message: "此編號已存在" });
+    }
+    if (err.code === "23503") {
+      return res
+        .status(400)
+        .json({ ok: false, code: "FK_VIOLATION", message: "外鍵錯誤：請確認使用者ID存在且啟用中" });
+    }
+    return res
+      .status(500)
+      .json({ ok: false, code: err.code || "INTERNAL_ERROR", message: err.detail || err.message || "Create failed" });
   }
 });
 
-// 取得列表 API（請整段覆蓋）
-router.get("/projects", async (req, res) => {
+/** -------------------------------------------
+ *  GET /api/projects  取得列表（前 200 筆，依權限過濾）
+ * ------------------------------------------- */
+router.get("/projects", requireAuth, async (req, res) => {
   try {
-    const me = req.user;
-    const is_admin = isAdmin(me);
-
-    const params = [];
-    let whereSql = '';
-    if (!is_admin) {
-      params.push(String(me.id));
-      whereSql = 'WHERE p.responsible_user_id = $1';
-    }
-
-    const sql = `
-      SELECT
-        p.id,
-        p.project_id,
-        p.name,
-        p.stage_id,
-        to_char(p.start_date::date, 'YYYY-MM-DD') AS start_date,  -- 字串
-        p.estimated_days,
-        to_char(p.due_date::date,   'YYYY-MM-DD') AS due_date,    -- 字串
-        p.responsible_user_id,
-        COALESCE(p.responsible_user_name, u.username) AS responsible_user_name,
-        p.creator_user_id,
-        p.creator_user_name,
-        p.created_at,
-        p.updated_at
-      FROM project AS p
-      LEFT JOIN "user" AS u ON u.id = p.responsible_user_id
-      ${whereSql}
-      ORDER BY p.created_at DESC
-      LIMIT 200
-    `;
-
-    const { rows } = await pool.query(sql, params);
+    const viewerId = Number(req.user.id);
+    const admin = isAdminRole(req.user.role);
+    const rows = await listProjects(pool, { viewerId, isAdmin: admin, limit: 200 });
     res.json({ ok: true, data: rows });
   } catch (err) {
     console.error("[GET /api/projects] failed:", err);
-    res.status(500).json({ ok: false, code: err.code || "INTERNAL_ERROR", message: err.message });
+    res
+      .status(500)
+      .json({ ok: false, code: err.code || "INTERNAL_ERROR", message: err.message });
   }
 });
 
-// 取得單筆專案資料
-router.get("/projects/:id", async (req, res) => {
+/** -------------------------------------------
+ *  GET /api/projects/:id  取得單筆（含權限檢查）
+ * ------------------------------------------- */
+router.get("/projects/:id", requireAuth, async (req, res) => {
   try {
-    const me = req.user;
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ ok: false, msg: "bad id" });
 
-    const { rows } = await pool.query(`
-      SELECT
-        p.id,
-        p.project_id,
-        p.name,
-        p.stage_id,
-        to_char(p.start_date::date, 'YYYY-MM-DD') AS start_date, 
-        p.estimated_days,                                        
-        to_char(p.due_date::date,   'YYYY-MM-DD') AS due_date, 
-        p.responsible_user_id,
-        p.responsible_user_name,
-        p.creator_user_id,
-        p.creator_user_name,
-        p.created_at,
-        p.updated_at
-      FROM project p
-      WHERE p.id = $1
-    `, [id]);
-    if (rows.length === 0) return res.status(404).json({ ok: false, msg: "not found" });
+    const row = await getProjectById(pool, id);
+    if (!row) return res.status(404).json({ ok: false, msg: "not found" });
 
-    const row = rows[0];
-    // ✅ 改成字串比較，避免型別不一致
-    if (!isAdmin(me) && String(row.responsible_user_id) !== String(me.id)) {
-      return res.status(403).json({ ok: false, msg: "NOT_OWNER" });
+    const admin = isAdminRole(req.user.role);
+    const viewerId = Number(req.user.id);
+    if (
+      !admin &&
+      row.creator_user_id !== viewerId &&
+      row.responsible_user_id !== viewerId
+    ) {
+      return res.status(403).json({ ok: false, msg: "forbidden" });
     }
 
     res.json({ ok: true, data: row });
@@ -215,120 +258,141 @@ router.get("/projects/:id", async (req, res) => {
   }
 });
 
-// 更新專案（部分更新）
-router.patch("/projects/:id", async (req, res) => {
+/** -------------------------------------------
+ *  PATCH /api/projects/:id  部分更新（自動重算 due_date）
+ *  （此處是否要加權限可依你們規則：例如僅管理員或建立者/負責人可改）
+ * ------------------------------------------- */
+router.patch("/projects/:id", requireAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const me = req.user;
     const idNum = Number(req.params.id);
     if (!Number.isFinite(idNum)) {
       return res.status(400).json({ ok: false, message: "id invalid" });
     }
 
-    // 先讀取單筆，做擁有權判斷
-    const { rows: targetRows } = await pool.query(
-      `SELECT id, responsible_user_id, stage_id, start_date, estimated_days FROM project WHERE id=$1`,
-      [idNum]
-    );
-    if (targetRows.length === 0) return res.status(404).json({ ok: false, message: "專案不存在" });
-    const target = targetRows[0];
+    // ★ 先讀舊資料（repo）
+    const prev = await getProjectForPatch(client, idNum);
+    if (!prev) return res.status(404).json({ ok: false, message: "專案不存在" });
 
-    // ✅ 改成字串比較
-    if (!isAdmin(me) && String(target.responsible_user_id) !== String(me.id)) {
-      return res.status(403).json({ ok: false, message: "NOT_OWNER" });
+    // （可選）加權限檢查
+    const admin = isAdminRole(req.user.role);
+    const viewerId = Number(req.user.id);
+    if (
+      !admin &&
+      prev.creator_user_id !== viewerId &&
+      prev.responsible_user_id !== viewerId
+    ) {
+      return res.status(403).json({ ok: false, message: "forbidden" });
     }
 
-    // 正規化 patch
+    // ★ 正規化 body
     const raw = req.body || {};
+    let nextResponsibleId;
+    let nextResponsibleName = undefined;
+
+    if (raw.responsible_user_id !== undefined) {
+      if (raw.responsible_user_id === "" || raw.responsible_user_id == null) {
+        nextResponsibleId = null;
+        nextResponsibleName = null;
+      } else {
+        const candidate = Number(raw.responsible_user_id);
+        if (Number.isFinite(candidate)) {
+          const nameRow = await getUserNameById(client, candidate);
+          if (nameRow && (nameRow.name || "").trim()) {
+            nextResponsibleId = candidate;
+            nextResponsibleName = nameRow.name.trim();
+          } else {
+            nextResponsibleId = null;
+            nextResponsibleName = null;
+          }
+        } else {
+          nextResponsibleId = null;
+          nextResponsibleName = null;
+        }
+      }
+    }
+
     const patch = {
       name: raw.name ?? undefined,
       stage_id: raw.stage_id !== undefined ? Number(raw.stage_id) : undefined,
       start_date: raw.start_date === "" ? null : raw.start_date,
-      estimated_days: raw.estimated_days === "" ? null : (raw.estimated_days !== undefined ? Number(raw.estimated_days) : undefined),
-      responsible_user_id: raw.responsible_user_id === "" ? null : (raw.responsible_user_id !== undefined ? raw.responsible_user_id : undefined),
+      estimated_days:
+        raw.estimated_days === ""
+          ? null
+          : raw.estimated_days !== undefined
+          ? Number(raw.estimated_days)
+          : undefined,
+      responsible_user_id: raw.responsible_user_id !== undefined ? nextResponsibleId : undefined,
+      responsible_user_name: nextResponsibleName,
     };
 
-    // ❗ 非 admin 不允許改負責人
-    if (!isAdmin(me)) {
-      delete patch.responsible_user_id;
-    }
-
-    const next_stage_id = patch.stage_id !== undefined ? patch.stage_id : target.stage_id;
-    const next_start_date = patch.start_date !== undefined ? patch.start_date : target.start_date;
-    const next_estimated_days = patch.estimated_days !== undefined ? patch.estimated_days : target.estimated_days;
+    const next_stage_id =
+      patch.stage_id !== undefined ? patch.stage_id : prev.stage_id;
+    const next_start_date =
+      patch.start_date !== undefined ? patch.start_date : prev.start_date;
+    const next_estimated_days =
+      patch.estimated_days !== undefined ? patch.estimated_days : prev.estimated_days;
 
     if (Number(next_stage_id) === 1 || Number(next_stage_id) === 2) {
-      if (!isYmd(next_start_date)) {
+      if (!next_start_date || !dayjs(next_start_date).isValid()) {
         return res.status(400).json({
-          ok: false, code: "REQUIRE_START_DATE",
-          message: "階段為設計或施工時，開始日 必填且需為有效日期(YYYY-MM-DD)"
+          ok: false,
+          code: "REQUIRE_START_DATE",
+          message: "階段為設計或施工時，開始日 必填且需為有效日期(YYYY-MM-DD)",
         });
       }
       if (!Number.isFinite(Number(next_estimated_days)) || Number(next_estimated_days) <= 0) {
         return res.status(400).json({
-          ok: false, code: "REQUIRE_ESTIMATED_DAYS",
-          message: "階段為設計或施工時，工期天數 必填且必須為正整數"
+          ok: false,
+          code: "REQUIRE_ESTIMATED_DAYS",
+          message: "階段為設計或施工時，工期天數 必填且必須為正整數",
         });
       }
     }
 
     const next_due_date = calcDueDate(next_start_date, next_estimated_days);
 
-    // 動態 UPDATE
-    const fields = [];
-    const values = [];
-    let idx = 1;
-    for (const [k, v] of Object.entries(patch)) {
-      if (v !== undefined) { fields.push(`${k} = $${idx++}`); values.push(v); }
-    }
-    // 永遠更新 due_date 與 updated_at
-    fields.push(`due_date = $${idx++}`); values.push(next_due_date);
-    fields.push(`updated_at = NOW()`);
+    const updated = await updateProjectDynamic(client, idNum, {
+      ...patch,
+      due_date: next_due_date,
+    });
 
-    values.push(idNum);
-    const sql = `
-      UPDATE project
-      SET ${fields.join(", ")}
-      WHERE id = $${idx}
-      RETURNING
-        id, project_id, name, stage_id,
-        to_char(start_date::date, 'YYYY-MM-DD') AS start_date, 
-        estimated_days,
-        to_char(due_date::date,   'YYYY-MM-DD') AS due_date,  
-        responsible_user_id, responsible_user_name,
-        creator_user_id, creator_user_name,
-        created_at, updated_at
-    `;
-    const { rows } = await pool.query(sql, values);
-    if (rows.length === 0) return res.status(404).json({ ok: false, message: "專案不存在" });
-
-    res.json({ ok: true, data: rows[0] });
+    if (!updated) return res.status(404).json({ ok: false, message: "專案不存在" });
+    res.json({ ok: true, data: updated });
   } catch (e) {
     console.error("[PATCH /api/projects/:id] failed:", e);
     res.status(500).json({ ok: false, message: e.message || "更新失敗" });
+  } finally {
+    client.release();
   }
 });
 
-// 刪除專案
-router.delete("/projects/:id", async (req, res) => {
+/** -------------------------------------------
+ *  DELETE /api/projects/:id 刪除（視規則決定是否限管理員）
+ * ------------------------------------------- */
+router.delete("/projects/:id", requireAuth, async (req, res) => {
   try {
-    const me = req.user;
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ ok: false, message: "id invalid" });
 
-    // 先查擁有權
-    const { rows } = await pool.query(`SELECT responsible_user_id FROM project WHERE id=$1`, [id]);
-    if (rows.length === 0) return res.status(404).json({ ok: false, message: "not found" });
+    // （可選）先讀舊資料做權限檢查
+    const row = await getProjectById(pool, id);
+    if (!row) return res.status(404).json({ ok: false, message: "not found" });
 
-    // ✅ 改成字串比較
-    if (!isAdmin(me) && String(rows[0].responsible_user_id) !== String(me.id)) {
-      return res.status(403).json({ ok: false, message: "NOT_OWNER" });
+    const admin = isAdminRole(req.user.role);
+    const viewerId = Number(req.user.id);
+    if (
+      !admin &&
+      row.creator_user_id !== viewerId &&
+      row.responsible_user_id !== viewerId
+    ) {
+      return res.status(403).json({ ok: false, message: "forbidden" });
     }
 
-    // 硬刪（若要軟刪，改成 UPDATE ... SET deleted_at = NOW()）
-    await pool.query(`DELETE FROM project WHERE id=$1`, [id]);
+    await deleteProjectById(pool, id);
     res.json({ ok: true });
   } catch (err) {
-    console.error(err);
+    console.error("[DELETE /api/projects/:id] failed:", err);
     res.status(500).json({ ok: false, message: "刪除失敗", detail: String(err) });
   }
 });
