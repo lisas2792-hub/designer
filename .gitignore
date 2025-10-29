@@ -3,4 +3,12 @@
 !.designer/.gitignore
 node_modules/
 logs/
-logs/*.log
+# logs/*.log
+
+# 忽略整個 logs 資料夾（防止大小寫、子資料夾）
+/logs/**
+
+# 但保留一個佔位檔 (可選，讓資料夾能被提交)
+# !/logs/.gitkeep
+
+*.env
