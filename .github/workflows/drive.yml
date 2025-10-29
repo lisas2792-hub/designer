@@ -12,15 +12,19 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      # OIDC 認證（不要放 audience，避免不一致）
-      - id: auth
-        uses: google-github-actions/auth@v2
+      - name: Checkout (full)
+        uses: actions/checkout@v4
         with:
-          workload_identity_provider: projects/909118568673/locations/global/workloadIdentityPools/drive-pool/providers/github-provider
-          service_account: drive-access@project-designer-476408.iam.gserviceaccount.com
-          create_credentials_file: true
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git sanity check
+        run: |
+          set -eux
+          git --version
+          git remote -v
+          git status
+          git log -1 --pretty=oneline || true
 
       - uses: actions/setup-node@v4
         with:
@@ -30,24 +34,22 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # 顯示目前是否拿到 ADC 憑證 & 專案ID
-      - name: Sanity check ADC
-        run: |
-          node -e "const {GoogleAuth}=require('google-auth-library');(async()=>{const a=new GoogleAuth();const c=await a.getClient();const p=await a.getProjectId();console.log('ADC OK, project:', p); const t=await c.getAccessToken(); console.log('Got access token?', !!t.token)})().catch(e=>{console.error('ADC error:', e?.message||e);process.exit(1)})"
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+      - name: Auth via WIF
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/909118568673/locations/global/workloadIdentityPools/drive-pool/providers/github-provider
+          service_account: drive-access@project-designer-476408.iam.gserviceaccount.com
+          create_credentials_file: true
 
-      # 顯示重要環境變數（不會輸出任何秘密）
-      - name: Print env for debug
+      - name: ADC check
         run: |
-          echo "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
-          echo "Node version:" && node -v
-          echo "NPM version:" && npm -v
+          node -e "const {GoogleAuth}=require('google-auth-library');(async()=>{const a=new GoogleAuth();const c=await a.getClient();const p=await a.getProjectId();console.log('ADC OK, project:', p)})().catch(e=>{console.error(e);process.exit(1)})"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
 
       - name: Upload to Drive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}   # 要先在 repo Secrets 設好
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}   # ← 到 repo Settings > Secrets 建這個
         run: node scripts/upload-to-drive.js
