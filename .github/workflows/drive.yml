@@ -2,33 +2,52 @@ name: Upload to Google Drive
 
 on:
   push:
-    branches: [ "main" ]   # 要改成別的分支也可以
+    branches: [ "main" ]
 
 permissions:
-  id-token: write          # 必須：讓 GitHub 簽發 OIDC JWT
+  id-token: write
   contents: read
 
 jobs:
   upload:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      # 使用 GCP 的 Workload Identity Federation（不用金鑰）
+      # OIDC 認證（不要放 audience，避免不一致）
       - id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/909118568673/locations/global/workloadIdentityPools/drive-pool/providers/github-provider
           service_account: drive-access@project-designer-476408.iam.gserviceaccount.com
-          audience: https://github.com/lisas2792-hub/designer
+          create_credentials_file: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: npm
 
-      - run: npm ci
+      - name: Install deps
+        run: npm ci
 
-      # 上傳測試檔案到 Google Drive
+      # 顯示目前是否拿到 ADC 憑證 & 專案ID
+      - name: Sanity check ADC
+        run: |
+          node -e "const {GoogleAuth}=require('google-auth-library');(async()=>{const a=new GoogleAuth();const c=await a.getClient();const p=await a.getProjectId();console.log('ADC OK, project:', p); const t=await c.getAccessToken(); console.log('Got access token?', !!t.token)})().catch(e=>{console.error('ADC error:', e?.message||e);process.exit(1)})"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+
+      # 顯示重要環境變數（不會輸出任何秘密）
+      - name: Print env for debug
+        run: |
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS}"
+          echo "Node version:" && node -v
+          echo "NPM version:" && npm -v
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+
       - name: Upload to Drive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}   # 要先在 repo Secrets 設好
         run: node scripts/upload-to-drive.js
