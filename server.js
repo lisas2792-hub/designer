@@ -40,7 +40,9 @@ const projectsRouter = require("./routes/projects");
 const responsibleUserRoute = require("./routes/responsibleuser");
 const { attachUser, requireAuth, requireAdmin } = require("./middleware/auth");
 const stagePlanRoutes   = require('./routes/stageplan');
-const stageUploadRoutes = require('./routes/stageupload');
+// 從 stageupload 取出 2 個 router（公開 OAuth 與 受保護 API）
+const { router: stageUploadRoutes, publicRouter: drivePublicRouter } = require('./routes/stageupload');
+
 
 const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT);
 
@@ -258,6 +260,8 @@ app.use("/api/auth", authRoutes);
 // 只留 health 或未來的使用者 CRUD
 app.use("/api/users", userRouter);
 
+// Drive OAuth 公開路由（在任何 requireAuth 之前）
+app.use('/api/drive', drivePublicRouter);
 
 // 管理員專用（受保護）
 app.use("/__ops", requireAdmin, opsRoutes);
@@ -314,4 +318,3 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`   Try: /health`);
   console.log(`   Try: /api/db/ping`);
 });
-

@@ -8,14 +8,16 @@ const multer = require("multer");
 const mime = require("mime-types");
 const { pool } = require("../db");
 const { attachUser, requireAuth } = require("../middleware/auth");
+const { google } = require("googleapis");                // ★ ADDED: 使用 OAuth2
 
+// ★ ADDED: 兩個 Router（公開 OAuth & 受保護 API）
+const publicRouter = express.Router();
 const router = express.Router();
 
-// ★（可選）本地除錯開關：在 .env 設 DEV_DEBUG=true 可印更詳細 log
+// ★（可選）本地除錯開關
 const DEV_DEBUG = (process.env.DEV_DEBUG || "false").toLowerCase() === "true";
 
 /* ================= 對照表：階段名稱 ================= */
-// 對照專案的 project_text（可依實際命名調整）
 const STAGE_NAMES = {
   1: "丈量",
   2: "案例分析",
@@ -28,102 +30,78 @@ const STAGE_NAMES = {
 };
 
 /* ================= 路徑與環境 ================= */
-const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT || "public/uploads"); // ★ 建議 .env 設 D:/uploads
+const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT || "public/uploads");
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20);
 const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
   "image/jpeg,image/png,image/webp,image/gif,application/pdf")
   .split(",")
   .map((s) => s.trim().toLowerCase());
 
-const CLOUD_TARGET = (process.env.CLOUD_TARGET || "NONE").toUpperCase(); // ★ 建議設為 DRIVE
-// Drive
+const CLOUD_TARGET = (process.env.CLOUD_TARGET || "NONE").toUpperCase();
 const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
 
-// ★ 確保根目錄存在（例如 D:/uploads）
+// 確保根目錄存在
 fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 
 /* ================= 工具 ================= */
-// 將實體路徑轉成對外 URL（需在 app 入口有 app.use('/uploads', express.static(UPLOAD_ROOT))）
 function toPublicUrl(absPath) {
   const rel = path.relative(UPLOAD_ROOT, absPath).replace(/\\/g, "/");
   return `/uploads/${rel}`;
 }
 
-// ★ 將資料夾/檔名中的 Windows 非法字元清理，避免因 : * ? 等字元導致寫檔失敗
 function safeSegment(s) {
   return String(s || "")
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_") // 非法字元 → _
-    .replace(/\s+/g, " ")                        // 多個空白壓成一個
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 80);                               // 路徑過長也會出錯，保守截斷
+    .slice(0, 80);
 }
 
-// ★ 預先計算目標資料夾：{編號_案名}/{階段編號_階段名稱} → 存在 req._targetDir
 async function resolveUploadTargetDir(req, _res, next) {
   try {
     const projectNo = String(req.params.projectNo || "");
     const stageNoInt = Number(req.params.stageNo);
 
-    // （可選）debug：看參數與根目錄
-    if ((process.env.DEV_DEBUG || "false").toLowerCase() === "true") {
+    if (DEV_DEBUG) {
       console.log("[upload] params:", { projectNo, stageNoInt });
       console.log("[upload] UPLOAD_ROOT:", UPLOAD_ROOT);
     }
 
-    // 檢查上傳根目錄可寫
     fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
     fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK);
 
-    // ★ 只查一次，用 project_id 抓 name
     const { rows } = await pool.query(
       `SELECT name FROM project WHERE project_id = $1 LIMIT 1`,
       [projectNo]
     );
-
-    // 取到案名；取不到就用備用名稱
     const projectName = rows.length ? rows[0].name : "未命名專案";
-
     const stageName = STAGE_NAMES[stageNoInt] || `stage_${stageNoInt}`;
 
     const outerDir = `${projectNo}_${safeSegment(projectName)}`;
     const innerDir = `${stageNoInt}_${safeSegment(stageName)}`;
     const targetDir = path.join(UPLOAD_ROOT, outerDir, innerDir);
 
-    // if ((process.env.DEV_DEBUG || "false").toLowerCase() === "true") {
-    //   console.log("[upload] resolved targetDir:", targetDir);
-    // }
-
     fs.mkdirSync(targetDir, { recursive: true });
     req._targetDir = targetDir;
     next();
-
   } catch (err) {
-    if ((process.env.DEV_DEBUG || "false").toLowerCase() === "true") {
-      console.error("[upload] resolveUploadTargetDir error:", err);
-    }
+    if (DEV_DEBUG) console.error("[upload] resolveUploadTargetDir error:", err);
     next(err);
   }
 }
 
 /* ================= Multer（磁碟存檔） ================= */
 const storage = multer.diskStorage({
-  // ★ 只使用 middleware 預先算好的目錄，不在這裡做任何 async/DB
   destination: (req, _file, cb) => {
-    const dir = req._targetDir || UPLOAD_ROOT; // 找不到就退回根目錄，避免崩
+    const dir = req._targetDir || UPLOAD_ROOT;
     if (DEV_DEBUG) console.log("[upload] multer.destination ->", dir);
     cb(null, dir);
   },
-
-  // 檔名：時間戳 + 原檔名（清理過的 base）
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname || "");
-    const base = path
-      .basename(file.originalname || "file", ext)
-      .replace(/[^\w.\-]+/g, "_");
+    const base = path.basename(file.originalname || "file", ext).replace(/[^\w.\-]+/g, "_");
     const ts = dayjs().format("YYYYMMDD_HHmmss_SSS");
-    const finalName = `${ts}_${base}${ext}`;
-    if (DEV_DEBUG) console.log("[upload] multer.filename ->", finalName);
-    cb(null, finalName);
+    cb(null, `${ts}_${base}${ext}`);
   },
 });
 
@@ -136,41 +114,133 @@ const upload = multer({
     cb(null, true);
   },
 });
-
-
 const acceptAny = upload.any();
 
-/* ================== 雲端：Google Drive 上傳 ================== */
-// ★ 僅保留 Drive；你說「暫時不要 GCS」，因此完全移除 GCS 相依，避免干擾
+/* ================= Google Drive（OAuth2） ================= */
+// ★ REMOVED: 舊的 GoogleAuth / Service Account 邏輯
+// ★ ADDED: OAuth 流程 + 單一全域 drive client
 let drive = null;
-if ((CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") && GDRIVE_FOLDER_ID) {
-  try {
-    const { google } = require("googleapis");
-    const auth = new google.auth.GoogleAuth({
-      scopes: [
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/drive",
-      ],
-    });
-    drive = google.drive({ version: "v3", auth });
 
-    if (drive && DEV_DEBUG) {
-      console.log("[Drive] client ready. CLOUD_TARGET=", CLOUD_TARGET, "FOLDER=", GDRIVE_FOLDER_ID);
-    }
-  } catch (e) {
-    console.warn("[Drive] 套件/認證載入失敗，略過 Drive：", e.message);
-  }
+const SCOPES = [
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive",
+];
+
+const OAUTH_TOKEN_PATH =
+  process.env.GOOGLE_OAUTH_TOKEN_PATH || path.resolve("oauth-token.json");
+
+function loadSavedToken() {
+  try { return JSON.parse(fs.readFileSync(OAUTH_TOKEN_PATH, "utf8")); } catch { return null; }
+}
+function saveToken(tokens) {
+  fs.mkdirSync(path.dirname(OAUTH_TOKEN_PATH), { recursive: true });
+  fs.writeFileSync(OAUTH_TOKEN_PATH, JSON.stringify(tokens), "utf8");
+}
+function createOAuthClient() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_OAUTH_CLIENT_ID,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    process.env.GOOGLE_OAUTH_REDIRECT
+  );
 }
 
-/**
- * 上傳到 Google Drive 並設定任何人可讀
- */
+// 啟動時載入 token（若有）
+(function initDriveOAuth() {
+  if (CLOUD_TARGET !== "DRIVE" && CLOUD_TARGET !== "BOTH") return;
+  const saved = loadSavedToken();
+  if (saved) {
+    if (!saved.refresh_token) {
+      console.warn("[Drive] ⚠ token 檔沒有 refresh_token；建議刪除 token 檔後重新授權 /api/drive/oauth2/start");
+    }
+    const oauth2 = createOAuthClient();
+    oauth2.setCredentials(saved);
+    drive = google.drive({ version: "v3", auth: oauth2 });
+    if (DEV_DEBUG) console.log("[Drive] OAuth token loaded, client ready.");
+  } else {
+    console.warn("[Drive] 尚未授權，請先開 /api/drive/oauth2/start");
+  }
+})();
+
+// ★ ADDED: 啟動後驗證資料夾 ID 是否可讀（可略）
+(async function validateFolderIdAtBoot() {
+  try {
+    if (!drive || !GDRIVE_FOLDER_ID) return;
+    const meta = await drive.files.get({
+      fileId: GDRIVE_FOLDER_ID,
+      fields: "id,name,mimeType,driveId",
+      supportsAllDrives: true,
+    });
+    if (meta.data.mimeType !== "application/vnd.google-apps.folder") {
+      console.warn("[Drive] ⚠ GDRIVE_FOLDER_ID 不是資料夾 ID。請用 /folders/<ID> 的那串。");
+    } else if (DEV_DEBUG) {
+      console.log("[Drive] Target folder OK:", {
+        id: meta.data.id, name: meta.data.name, driveId: meta.data.driveId
+      });
+    }
+  } catch (e) {
+    console.warn("[Drive] ⚠ 無法驗證 GDRIVE_FOLDER_ID：", e?.response?.data?.error?.message || e.message || e);
+  }
+})();
+
+/* ============ 公開：OAuth 路由（掛在 publicRouter；不需登入驗證） ============ */
+publicRouter.get("/oauth2/start", (_req, res) => {
+  const oauth2 = createOAuthClient();
+  const url = oauth2.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    scope: SCOPES,
+    include_granted_scopes: true,
+  });
+  res.redirect(url);
+});
+
+publicRouter.get("/oauth2/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
+    const oauth2 = createOAuthClient();
+    const { tokens } = await oauth2.getToken(code);
+    saveToken(tokens);
+    oauth2.setCredentials(tokens);
+    drive = google.drive({ version: "v3", auth: oauth2 });
+    res.send("Google Drive 授權完成，請回到系統再試上傳。");
+  } catch (e) {
+    console.error("[OAuth callback] error:", e?.response?.data || e);
+    res.status(500).send("授權失敗：" + (e?.message || e));
+  }
+});
+
+// 驗證目前 OAuth 身分
+publicRouter.get("/__whoami", async (_req, res) => {
+  try {
+    if (!drive) return res.json({ ok:false, message:'Drive client not ready (未授權或無 token)' });
+    const me = await drive.about.get({ fields: 'user, storageQuota' });
+    res.json({ ok:true, user: me.data.user, storageQuota: me.data.storageQuota });
+  } catch (e) {
+    res.json({ ok:false, error: String(e?.response?.data?.error?.message || e.message || e) });
+  }
+});
+
+// （可選）檢查資料夾可存取
+publicRouter.get("/__check-folder", async (_req, res) => {
+  try {
+    if (!drive) return res.json({ ok:false, msg:"Drive client not ready (未授權)" });
+    const meta = await drive.files.get({
+      fileId: GDRIVE_FOLDER_ID,
+      fields: "id,name,mimeType,driveId,permissions",
+      supportsAllDrives: true,
+    });
+    res.json({ ok:true, meta: meta.data });
+  } catch (e) {
+    res.json({ ok:false, error: e?.response?.data?.error?.message || e.message || String(e) });
+  }
+});
+
+/* ============ 上傳：受保護 API（掛在 router；需登入驗證） ============ */
 async function uploadToDrive(absPath, projectNo, stageNo) {
-  if (!drive || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定" };
+  if (!drive || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定或未授權" };
   try {
     const fileName = path.basename(absPath);
     const fileMeta = {
-      // ★ 檔名可包含專案與階段，便於在雲端側辨識
       name: `${projectNo}_${stageNo}_${fileName}`,
       parents: [GDRIVE_FOLDER_ID],
     };
@@ -181,45 +251,43 @@ async function uploadToDrive(absPath, projectNo, stageNo) {
     const createRes = await drive.files.create({
       resource: fileMeta,
       media,
-      fields: "id, name, webViewLink, webContentLink",
+      fields: "id,name,parents,driveId,webViewLink,webContentLink", // ★ CHANGED: 回傳更多欄位
       supportsAllDrives: true,
     });
-
     const fileId = createRes.data.id;
 
-    // 連結可看
-    await drive.permissions.create({
+    // 嘗試設公開讀取（若組織策略不允許，失敗也不影響上傳）
+    try {
+      await drive.permissions.create({
+        fileId,
+        resource: { role: "reader", type: "anyone" },
+        supportsAllDrives: true,
+      });
+    } catch (permErr) {
+      if (DEV_DEBUG) console.warn("[Drive] set public permission failed:", permErr?.message || permErr);
+    }
+
+    const info = await drive.files.get({
       fileId,
-      resource: { role: "reader", type: "anyone" },
+      fields: "id,parents,driveId,webViewLink,webContentLink",
       supportsAllDrives: true,
     });
 
-    const getRes = await drive.files.get({
-      fileId,
-      fields: "id, webViewLink, webContentLink",
-      supportsAllDrives: true,
-    });
-
-    const url = getRes.data.webContentLink || getRes.data.webViewLink;
-    return { ok: true, url, fileId };
+    const url = info.data.webContentLink || info.data.webViewLink;
+    return { ok: true, url, fileId, parents: info.data.parents, driveId: info.data.driveId };
   } catch (err) {
-
-    // ★ 改這裡：帶回更具體的錯誤內容（含 status/錯誤碼）
     const e = err?.errors?.[0] || err?.response?.data?.error || err;
     const detail = typeof e === "string" ? e : (e.message || e.statusText || JSON.stringify(e));
     const code = e?.code || err?.code || err?.response?.status;
     return { ok: false, error: `DriveError${code ? `(${code})` : ""}: ${detail}` };
-    
-    // return { ok: false, error: String(err.message || err) };
   }
 }
 
-/* ================== 上傳 API ================== */
 router.post(
   "/projects/:projectNo/stages/:stageNo/upload",
   attachUser,
   requireAuth,
-  resolveUploadTargetDir,      // 先計算目錄
+  resolveUploadTargetDir,
   acceptAny,
   async (req, res) => {
     try {
@@ -234,58 +302,35 @@ router.post(
       }
 
       const savedLocal = [];
-      const savedCloud = []; // 收集雲端結果（每檔一筆）
+      const savedCloud = [];
 
       for (const f of req.files) {
         const localUrl = toPublicUrl(f.path);
 
-        // ★ 先 upsert 本機 URL（避免雲端失敗導致流程卡住）
         await pool.query(
-          `
-          INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at)
-          VALUES ($1, $2, $3, NOW())
-          ON CONFLICT (project_id, text_no)
-          DO UPDATE SET file_url = EXCLUDED.file_url,
-                        completed_at = NOW()
-          `,
+          `INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (project_id, text_no)
+           DO UPDATE SET file_url = EXCLUDED.file_url, completed_at = NOW()`,
           [projectNo, stageNo, localUrl]
         );
 
         const cloud = { localUrl };
 
-        // ★ 只推到 Drive（你現在暫時不要 GCS）
         if (CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") {
           const r = await uploadToDrive(f.path, projectNo, stageNo);
           cloud.drive = r;
-
-          if (DEV_DEBUG) {
-            console.log("[Drive] result:", r);
-          }
-
-          // 若你想 DB 以雲端 URL 為主，可在 r.ok 時回寫一次：
-          // if (r.ok) {
-          //   await pool.query(
-          //     `UPDATE project_text_upload
-          //      SET file_url = $1, updated_at = NOW()
-          //      WHERE project_id = $2 AND text_no = $3`,
-          //     [r.url, projectNo, stageNo]
-          //   );
-          // }
+          if (DEV_DEBUG) console.log("[Drive] result:", r);
         }
 
-        savedLocal.push({
-          url: localUrl,
-          name: f.originalname,
-          size: f.size,
-          mime: f.mimetype,
-        });
+        savedLocal.push({ url: localUrl, name: f.originalname, size: f.size, mime: f.mimetype });
         savedCloud.push(cloud);
       }
 
       return res.json({
         ok: true,
-        files: savedLocal,   // 本機對外 URL（可立即預覽）
-        cloud: savedCloud,   // 雲端結果（成功/失敗）
+        files: savedLocal,
+        cloud: savedCloud,
         cloudTarget: CLOUD_TARGET,
       });
     } catch (err) {
@@ -298,30 +343,16 @@ router.post(
   }
 );
 
-// 除錯用：不經過 multer，只檢查目錄是否正確
-// GET /api/projects/20250003/stages/1/__debug-target
+// 目錄除錯
 router.get(
   "/projects/:projectNo/stages/:stageNo/__debug-target",
   attachUser,
   requireAuth,
   resolveUploadTargetDir,
   (req, res) => {
-    return res.json({
-      ok: true,
-      uploadRoot: UPLOAD_ROOT,
-      targetDir: req._targetDir,
-    });
+    return res.json({ ok: true, uploadRoot: UPLOAD_ROOT, targetDir: req._targetDir });
   }
 );
 
-router.get('/__whoami/drive', async (_req, res) => {
-  try {
-    if (!drive) return res.json({ ok:false, message:'Drive client not ready' });
-    const me = await drive.about.get({ fields: 'user, storageQuota' });
-    res.json({ ok:true, user: me.data.user, storageQuota: me.data.storageQuota });
-  } catch (e) {
-    res.json({ ok:false, error: String(e.message || e) });
-  }
-});
-
-module.exports = router;
+// ★ CHANGED: 匯出兩個 Router
+module.exports = { router, publicRouter };

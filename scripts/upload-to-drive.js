@@ -3,38 +3,35 @@ const { google } = require('googleapis');
 const { Readable } = require('node:stream');
 
 async function main() {
-  // 透過 ADC 取得 WIF 臨時憑證
   const auth = await google.auth.getClient({
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: [
+      'https://www.googleapis.com/auth/drive.file',
+      // 如遇權限不足再加開：
+      // 'https://www.googleapis.com/auth/drive',
+    ],
   });
   const drive = google.drive({ version: 'v3', auth });
 
-  // 與 workflow/Secrets 一致：DRIVE_FOLDER_ID
   const folderId = process.env.DRIVE_FOLDER_ID;
-  const parents = folderId ? [folderId] : undefined;
-  console.log('📌 Target folderId =', folderId || '(未設定，將上傳到 SA 的 My Drive)');
+  if (!folderId) {
+    console.error('❌ 未設定 DRIVE_FOLDER_ID，為避免上傳到錯誤位置，已中止。');
+    process.exit(1);
+  }
+  console.log('📌 Target folderId =', folderId);
 
-  // 驗證 Drive 連線
   try {
-    const info = await drive.about.get({
-      fields: 'user,storageQuota',
-      supportsAllDrives: true,
-    });
+    const info = await drive.about.get({ fields: 'user,storageQuota', supportsAllDrives: true });
     console.log('📁 Drive 連線成功：登入帳號 →', info.data.user?.emailAddress);
   } catch (err) {
     console.error('❌ 驗證 Drive 失敗：', err?.response?.data || err);
     process.exit(1);
   }
 
-  // 上傳測試檔
   try {
     const res = await drive.files.create({
-      requestBody: { name: 'hello.txt', parents },
-      media: {
-        mimeType: 'text/plain',
-        body: Readable.from(['Hello from GitHub Actions with WIF!\n']),
-      },
-      fields: 'id,name,webViewLink,parents',
+      requestBody: { name: 'hello.txt', parents: [folderId] },
+      media: { mimeType: 'text/plain', body: Readable.from(['Hello from GitHub Actions with WIF!\n']) },
+      fields: 'id,name,parents,webViewLink',
       supportsAllDrives: true,
     });
     console.log('✅ 上傳成功:', res.data);
@@ -44,7 +41,4 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('❌ Unexpected:', err);
-  process.exit(1);
-});
+main().catch(err => { console.error('❌ Unexpected:', err); process.exit(1); });

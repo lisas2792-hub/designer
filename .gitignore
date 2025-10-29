@@ -1,14 +1,15 @@
-.designer/
-!designer/designergithub
-!.designer/.gitignore
+# ================= 基本 =================
 node_modules/
-logs/
-# logs/*.log
-
-# 忽略整個 logs 資料夾（防止大小寫、子資料夾）
-/logs/**
-
-# 但保留一個佔位檔 (可選，讓資料夾能被提交)
-# !/logs/.gitkeep
-
 *.env
+/secrets/
+
+# ================= logs（整個忽略，但保留佔位） =================
+/logs/*
+!/logs/.gitkeep
+
+# ================= .designer（只保留兩個檔） =================
+# 先忽略整個資料夾內容
+/.designer/*
+# 再放行要保留的檔案
+!/.designer/.gitignore
+!/.designer/designergithub

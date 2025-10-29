@@ -1,26 +1,33 @@
 name: drive
+
 on:
   push:
-    branches: [ main ]   # 你的主分支，不是 main 就改這裡
+    branches: [ main ]
 
 permissions:
-  contents: write        # 讓 GITHUB_TOKEN 有寫入權
+  contents: write   # 允許用 GITHUB_TOKEN 寫入
 
 jobs:
   upload:
     runs-on: ubuntu-latest
+    # 防止工作流程因 bot 的回推再次觸發（雙保險，除了 [skip ci] 之外）
+    if: github.actor != 'github-actions[bot]'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true   # 明確指定（預設是 true，但明寫更穩）
+
+      - name: Fix git safe.directory (避免偶發的「dubious ownership」)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Setup git identity
         run: |
-          git config user.name "${{ github.actor }}"
+          git config user.name  "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
 
-      # 這裡放你原本要做的事（產生檔案、同步、更新等）
+      # 這裡放你要做的事情（產生檔案、同步等）
       # - run: npm ci && npm run build
 
       - name: Commit changes (if any)
