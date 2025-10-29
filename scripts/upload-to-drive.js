@@ -1,26 +1,26 @@
-// scripts/upload-to-drive.js
-import { google } from 'googleapis';
-import { Readable } from 'node:stream';
+// scripts/upload-to-drive.js  (CommonJS 版)
+const { google } = require('googleapis');
+const { Readable } = require('node:stream');
 
 async function main() {
-  // 取得臨時憑證（WIF）
+  // 透過 ADC 取得 WIF 臨時憑證
   const auth = await google.auth.getClient({
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   });
   const drive = google.drive({ version: 'v3', auth });
 
-  // 用 GitHub Secret 傳入的資料夾 ID（建議名稱：DRIVE_FOLDER_ID）
+  // 與 workflow/Secrets 一致：DRIVE_FOLDER_ID
   const folderId = process.env.DRIVE_FOLDER_ID;
   const parents = folderId ? [folderId] : undefined;
   console.log('📌 Target folderId =', folderId || '(未設定，將上傳到 SA 的 My Drive)');
 
-  // 驗證連線
+  // 驗證 Drive 連線
   try {
     const info = await drive.about.get({
       fields: 'user,storageQuota',
       supportsAllDrives: true,
     });
-    console.log('📁 Drive 連線成功：', info.data.user?.emailAddress);
+    console.log('📁 Drive 連線成功：登入帳號 →', info.data.user?.emailAddress);
   } catch (err) {
     console.error('❌ 驗證 Drive 失敗：', err?.response?.data || err);
     process.exit(1);
