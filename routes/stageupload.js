@@ -38,7 +38,7 @@ const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
   .map((s) => s.trim().toLowerCase());
 
 const CLOUD_TARGET = (process.env.CLOUD_TARGET || "NONE").toUpperCase();
-const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;   // ★ CHANGED: 統一命名（保留你原本變數）
 
 // 確保根目錄存在
 fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -55,6 +55,66 @@ function safeSegment(s) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);
+}
+
+// ★ ADDED: Drive 專用工具（在本檔內，避免動到其他檔案）
+const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
+function escQ(str = "") { return String(str).replace(/(['\\])/g, "\\$1"); }
+
+async function driveFindFolder(drive, name, parentId) {     // ★ ADDED
+  const q = [
+    `mimeType='${DRIVE_FOLDER_MIME}'`,
+    `name='${escQ(name)}'`,
+    "trashed=false",
+    parentId ? `'${escQ(parentId)}' in parents` : ""
+  ].filter(Boolean).join(" and ");
+
+  const { data } = await drive.files.list({
+    q,
+    fields: "files(id,name,parents)",
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  return data.files?.[0]?.id || null;
+}
+
+async function driveEnsureFolder(drive, name, parentId, appProps) { // ★ ADDED
+  const existed = await driveFindFolder(drive, name, parentId);
+  if (existed) return existed;
+  const { data } = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: DRIVE_FOLDER_MIME,
+      parents: parentId ? [parentId] : undefined,
+      appProperties: appProps || undefined,
+    },
+    fields: "id,name,parents",
+    supportsAllDrives: true,
+  });
+  return data.id;
+}
+
+async function ensureProjectStageFolder(drive, rootId, projectNo, projectName, stageNo, stageName) { // ★ ADDED
+  // 先建立/取得：{projectNo}_{projectName}
+  const projectFolderName = `${projectNo}_${safeSegment(projectName)}`;
+  const projectFolderId = await driveEnsureFolder(drive, projectFolderName, rootId, {
+    type: "project",
+    projectNo: String(projectNo),
+    projectName: String(projectName),
+  });
+
+  // 再建立/取得：{stageNo}_{stageName}
+  const stageFolderName = `${stageNo}_${safeSegment(stageName)}`;
+  const stageFolderId = await driveEnsureFolder(drive, stageFolderName, projectFolderId, {
+    type: "stage",
+    projectNo: String(projectNo),
+    projectName: String(projectName),
+    stageNo: String(stageNo),
+    stageName: String(stageName),
+  });
+
+  return { projectFolderId, stageFolderId };
 }
 
 async function resolveUploadTargetDir(req, _res, next) {
@@ -82,7 +142,11 @@ async function resolveUploadTargetDir(req, _res, next) {
     const targetDir = path.join(UPLOAD_ROOT, outerDir, innerDir);
 
     fs.mkdirSync(targetDir, { recursive: true });
+
     req._targetDir = targetDir;
+    req._projectName = projectName;     // ★ ADDED: 後面上傳到雲端需要
+    req._stageName = stageName;         // ★ ADDED
+
     next();
   } catch (err) {
     if (DEV_DEBUG) console.error("[upload] resolveUploadTargetDir error:", err);
@@ -236,13 +300,25 @@ publicRouter.get("/__check-folder", async (_req, res) => {
 });
 
 /* ============ 上傳：受保護 API（掛在 router；需登入驗證） ============ */
-async function uploadToDrive(absPath, projectNo, stageNo) {
+// ★ CHANGED: 改為「自動建立/使用：案名資料夾／階段資料夾」上傳
+async function uploadToDrive(absPath, projectNo, stageNo, projectName, stageName) {
   if (!drive || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定或未授權" };
   try {
+    // 1) 確保「案名／階段」兩層資料夾存在
+    const { stageFolderId } = await ensureProjectStageFolder(
+      drive,
+      GDRIVE_FOLDER_ID,
+      projectNo,
+      projectName,
+      stageNo,
+      stageName
+    );
+
+    // 2) 上傳到該階段資料夾
     const fileName = path.basename(absPath);
     const fileMeta = {
       name: `${projectNo}_${stageNo}_${fileName}`,
-      parents: [GDRIVE_FOLDER_ID],
+      parents: [stageFolderId],                                     // ★ CHANGED: 指向階段資料夾
     };
     const media = {
       mimeType: mime.lookup(absPath) || "application/octet-stream",
@@ -251,12 +327,12 @@ async function uploadToDrive(absPath, projectNo, stageNo) {
     const createRes = await drive.files.create({
       resource: fileMeta,
       media,
-      fields: "id,name,parents,driveId,webViewLink,webContentLink", // ★ CHANGED: 回傳更多欄位
+      fields: "id,name,parents,driveId,webViewLink,webContentLink",
       supportsAllDrives: true,
     });
     const fileId = createRes.data.id;
 
-    // 嘗試設公開讀取（若組織策略不允許，失敗也不影響上傳）
+    // 3) （可選）設公開讀取
     try {
       await drive.permissions.create({
         fileId,
@@ -274,7 +350,14 @@ async function uploadToDrive(absPath, projectNo, stageNo) {
     });
 
     const url = info.data.webContentLink || info.data.webViewLink;
-    return { ok: true, url, fileId, parents: info.data.parents, driveId: info.data.driveId };
+    return {
+      ok: true,
+      url,
+      fileId,
+      parents: info.data.parents,
+      driveId: info.data.driveId,
+      stageFolderId,                                               // ★ ADDED: 回傳階段資料夾ID
+    };
   } catch (err) {
     const e = err?.errors?.[0] || err?.response?.data?.error || err;
     const detail = typeof e === "string" ? e : (e.message || e.statusText || JSON.stringify(e));
@@ -301,6 +384,9 @@ router.post(
         return res.status(400).json({ ok: false, error: "沒有檔案" });
       }
 
+      const projectName = req._projectName;           // ★ ADDED: 由 middleware 提供
+      const stageName = req._stageName;               // ★ ADDED
+
       const savedLocal = [];
       const savedCloud = [];
 
@@ -309,16 +395,17 @@ router.post(
 
         await pool.query(
           `INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at)
-           VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (project_id, text_no)
-           DO UPDATE SET file_url = EXCLUDED.file_url, completed_at = NOW()`,
+          VALUES ($1, $2, $3, NOW())
+          ON CONFLICT (project_id, text_no)
+          DO UPDATE SET file_url = EXCLUDED.file_url, completed_at = NOW()`,
           [projectNo, stageNo, localUrl]
         );
 
         const cloud = { localUrl };
 
         if (CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") {
-          const r = await uploadToDrive(f.path, projectNo, stageNo);
+          // ★ CHANGED: 多傳 projectName / stageName，讓雲端能分資料夾
+          const r = await uploadToDrive(f.path, projectNo, stageNo, projectName, stageName);
           cloud.drive = r;
           if (DEV_DEBUG) console.log("[Drive] result:", r);
         }
