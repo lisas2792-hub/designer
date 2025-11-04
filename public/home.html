@@ -1515,14 +1515,39 @@
       // 目前目標
       let current = { projectNo: null, stageNo: null, cellEl: null };
 
-      // 開窗：帶入 案件編號 + 階段 + 哪一格DOM
-      window.openStageUpload = function(projectNo, stageNo, cellEl){
-        current = { projectNo, stageNo, cellEl };
-        hintBox.textContent = `案件編號：${projectNo}　階段：${stageNo}`;
-        statusBox.textContent = '';
-        uploadInput.value = '';
-        uploadModal.style.display = 'flex';
-      };
+      // 打開上傳對話框 帶入 案件編號 + 階段 + 哪一格DOM
+      window.openStageUpload = async function(projectNo, stageNo, cellEl) {
+      current = { projectNo, stageNo, cellEl };
+      hintBox.textContent = `案件編號：${projectNo}　階段：${stageNo}`;
+      statusBox.innerHTML = '載入中…';
+      uploadInput.value = '';
+      uploadModal.style.display = 'flex';
+
+      try {
+        // 🔹 向後端查詢最後一次上傳記錄
+        const res = await apiFetch(`/api/projects/${projectNo}/stages/${stageNo}/last`);
+        const data = await res.json();
+
+        if (res.ok && data?.ok && data.file) {
+          const file = data.file;
+          const thumb = file.thumbnail_link || file.file_url;
+          const link = file.file_url;
+          statusBox.innerHTML = `
+            <div style="margin-bottom:8px;">最後上傳：</div>
+            <a href="${link}" target="_blank" style="display:inline-block;border:1px solid #ccc;border-radius:8px;overflow:hidden;">
+              <img src="${thumb}" style="width:100%;max-width:200px;display:block;">
+            </a>
+            <div style="font-size:13px;margin-top:6px;">點圖可開啟完整檔案</div>
+          `;
+        } else {
+          statusBox.textContent = '目前沒有上傳記錄';
+        }
+      } catch (err) {
+        console.warn('load last file failed', err);
+        statusBox.textContent = '無法取得上次上傳資訊';
+      }
+    };
+
 
       function closeUpload(){
         uploadModal.style.display = 'none';

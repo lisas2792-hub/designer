@@ -52,7 +52,7 @@ function toPublicUrl(absPath) {
 function safeSegment(s) {
   return String(s || "")
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
-    .replace(/\s+/g, " ")
+    .replace(/\s/g, " ")
     .trim()
     .slice(0, 80);
 }
@@ -163,7 +163,7 @@ const storage = multer.diskStorage({
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname || "");
-    const base = path.basename(file.originalname || "file", ext).replace(/[^\w.\-]+/g, "_");
+    const base = path.basename(file.originalname || "file", ext).replace(/[^\w.\-]/g, "_");
     const ts = dayjs().format("YYYYMMDD_HHmmss_SSS");
     cb(null, `${ts}_${base}${ext}`);
   },
@@ -182,7 +182,7 @@ const acceptAny = upload.any();
 
 /* ================= Google Drive（OAuth2） ================= */
 // ★ REMOVED: 舊的 GoogleAuth / Service Account 邏輯
-// ★ ADDED: OAuth 流程 + 單一全域 drive client
+// ★ ADDED: OAuth 流程  單一全域 drive client
 let drive = null;
 
 const SCOPES = [
@@ -269,7 +269,7 @@ publicRouter.get("/oauth2/callback", async (req, res) => {
     res.send("Google Drive 授權完成，請回到系統再試上傳。");
   } catch (e) {
     console.error("[OAuth callback] error:", e?.response?.data || e);
-    res.status(500).send("授權失敗：" + (e?.message || e));
+    res.status(500).send("授權失敗："  (e?.message || e));
   }
 });
 
@@ -304,59 +304,51 @@ publicRouter.get("/__check-folder", async (_req, res) => {
 async function uploadToDrive(absPath, projectNo, stageNo, projectName, stageName) {
   if (!drive || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定或未授權" };
   try {
-    // 1) 確保「案名／階段」兩層資料夾存在
+    // 1) 確保：案名資料夾 / 階段資料夾
     const { stageFolderId } = await ensureProjectStageFolder(
-      drive,
-      GDRIVE_FOLDER_ID,
-      projectNo,
-      projectName,
-      stageNo,
-      stageName
+      drive, GDRIVE_FOLDER_ID, projectNo, projectName, stageNo, stageName
     );
 
-    // 2) 上傳到該階段資料夾
+    // 2) 上傳
     const fileName = path.basename(absPath);
-    const fileMeta = {
-      name: `${projectNo}_${stageNo}_${fileName}`,
-      parents: [stageFolderId],                                     // ★ CHANGED: 指向階段資料夾
-    };
-    const media = {
-      mimeType: mime.lookup(absPath) || "application/octet-stream",
-      body: fs.createReadStream(absPath),
-    };
     const createRes = await drive.files.create({
-      resource: fileMeta,
-      media,
+      resource: {
+        name: `${projectNo}_${stageNo}_${fileName}`,
+        parents: [stageFolderId],
+      },
+      media: {
+        mimeType: mime.lookup(absPath) || "application/octet-stream",
+        body: fs.createReadStream(absPath),
+      },
       fields: "id,name,parents,driveId,webViewLink,webContentLink",
       supportsAllDrives: true,
     });
+
     const fileId = createRes.data.id;
 
-    // 3) （可選）設公開讀取
+    // 3)（可選）開放匿名讀取；若你只在組織內用，可移除這段
     try {
       await drive.permissions.create({
         fileId,
         resource: { role: "reader", type: "anyone" },
         supportsAllDrives: true,
       });
-    } catch (permErr) {
-      if (DEV_DEBUG) console.warn("[Drive] set public permission failed:", permErr?.message || permErr);
-    }
+    } catch (_) {}
 
+    // 4) 取縮圖與最終連結
     const info = await drive.files.get({
       fileId,
-      fields: "id,parents,driveId,webViewLink,webContentLink",
+      fields: "id,parents,driveId,webViewLink,webContentLink,thumbnailLink",
       supportsAllDrives: true,
     });
 
-    const url = info.data.webContentLink || info.data.webViewLink;
     return {
       ok: true,
-      url,
       fileId,
-      parents: info.data.parents,
-      driveId: info.data.driveId,
-      stageFolderId,                                               // ★ ADDED: 回傳階段資料夾ID
+      stageFolderId,
+      webViewLink: info.data.webViewLink || null,       // 建議用這個當 file_url
+      webContentLink: info.data.webContentLink || null, // 需要下載用這個
+      thumbnailLink: info.data.thumbnailLink || null,   // 清單縮圖
     };
   } catch (err) {
     const e = err?.errors?.[0] || err?.response?.data?.error || err;
@@ -391,27 +383,30 @@ router.post(
       const savedCloud = [];
 
       for (const f of req.files) {
-        const localUrl = toPublicUrl(f.path);
+        // 1) 上傳到 Drive（已自動分案名/階段資料夾）
+        const r = await uploadToDrive(f.path, projectNo, stageNo, projectName, stageName);
+        if (!r.ok) throw new Error(r.error || "Drive upload failed");
 
+        const driveUrl = r.webViewLink || r.webContentLink; // 建議優先用可預覽的 webViewLink
+        const driveFileId = r.fileId;
+        const thumbnailLink = r.thumbnailLink || null;
+
+        // 2) 更新「最新指標」：覆蓋成最新（你原本就有 ON CONFLICT，這裡只多更新幾個欄位）
         await pool.query(
-          `INSERT INTO project_text_upload (project_id, text_no, file_url, completed_at)
-          VALUES ($1, $2, $3, NOW())
+          `INSERT INTO project_text_upload (project_id, text_no, file_url, drive_file_id, thumbnail_link, completed_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
           ON CONFLICT (project_id, text_no)
-          DO UPDATE SET file_url = EXCLUDED.file_url, completed_at = NOW()`,
-          [projectNo, stageNo, localUrl]
+          DO UPDATE SET file_url = EXCLUDED.file_url,
+                        drive_file_id = EXCLUDED.drive_file_id,
+                        thumbnail_link = EXCLUDED.thumbnail_link,
+                        completed_at = NOW(),
+                        updated_at = NOW()`,
+          [projectNo, stageNo, driveUrl, driveFileId, thumbnailLink]
         );
 
-        const cloud = { localUrl };
-
-        if (CLOUD_TARGET === "DRIVE" || CLOUD_TARGET === "BOTH") {
-          // ★ CHANGED: 多傳 projectName / stageName，讓雲端能分資料夾
-          const r = await uploadToDrive(f.path, projectNo, stageNo, projectName, stageName);
-          cloud.drive = r;
-          if (DEV_DEBUG) console.log("[Drive] result:", r);
-        }
-
-        savedLocal.push({ url: localUrl, name: f.originalname, size: f.size, mime: f.mimetype });
-        savedCloud.push(cloud);
+        // 3) 回傳給前端顯示（保持你的回傳結構）
+        savedLocal.push({ url: driveUrl, name: f.originalname, size: f.size, mime: f.mimetype });
+        savedCloud.push({ drive: { ok: true, url: driveUrl, fileId: driveFileId, thumbnailLink } });
       }
 
       return res.json({
@@ -440,6 +435,38 @@ router.get(
     return res.json({ ok: true, uploadRoot: UPLOAD_ROOT, targetDir: req._targetDir });
   }
 );
+
+// 查詢最後一次上傳的檔案（給前端彈窗預覽）
+// 取最後一次上傳（支援 project_id=案號 或 project_id=DB id 兩種）
+router.get("/projects/:projectNo/stages/:stageNo/last", requireAuth, async (req, res) => {
+  const { projectNo, stageNo } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT file_url, thumbnail_link, drive_file_id,
+             COALESCE(updated_at, completed_at) AS ts
+      FROM project_text_upload
+      WHERE text_no = $2
+        AND (
+          project_id = $1
+          OR project_id = (
+            SELECT id::text FROM project WHERE project_id = $1 LIMIT 1
+          )
+        )
+      ORDER BY COALESCE(updated_at, completed_at) DESC NULLS LAST
+      LIMIT 1
+      `,
+      [String(projectNo), Number(stageNo)]
+    );
+
+    if (rows.length === 0) return res.json({ ok: true, file: null });
+    return res.json({ ok: true, file: rows[0] });
+  } catch (err) {
+    console.error("get last upload failed:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 
 // ★ CHANGED: 匯出兩個 Router
 module.exports = { router, publicRouter };

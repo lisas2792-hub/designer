@@ -6,7 +6,7 @@ const { attachUser, requireAuth } = require("../middleware/auth");
 const router = express.Router();
 
 // 啟動時印一行，確認有載到這支路由
-console.log("[routes] responsibleuser loaded");
+// console.log("[routes] responsibleuser loaded");
 
 /* 健康檢查：GET /api/responsible-user/ping */
 router.get("/ping", (_req, res) => {

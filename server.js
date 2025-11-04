@@ -315,6 +315,4 @@ app.use((err, req, res, next) => {
 const port = Number(process.env.PORT || 3000);
 app.listen(port, "0.0.0.0", () => {
   console.log(`API on http://0.0.0.0:${port} [build:${Date.now()}]`);
-  console.log(`   Try: /health`);
-  console.log(`   Try: /api/db/ping`);
 });
