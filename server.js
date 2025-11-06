@@ -1,11 +1,3 @@
-// ---- 全域錯誤攔截（放在最前面）----
-// process.on("uncaughtException", err => {
-//   console.error("[FATAL] uncaughtException:", err);
-// });
-// process.on("unhandledRejection", r => {
-//   console.error("[FATAL] unhandledRejection:", r);
-// });
-
 // ==== Dayjs 全域設定：固定台北時區（避免少一天）====
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -44,7 +36,10 @@ const stagePlanRoutes   = require('./routes/stageplan');
 const { router: stageUploadRoutes, publicRouter: drivePublicRouter } = require('./routes/stageupload');
 
 
-const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT);
+// 讓瀏覽器能存取上傳後（本地備份）檔案
+const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT || "public/uploads");
+app.use("/uploads", express.static(UPLOAD_ROOT));  // 對應 toPublicUrl()
+
 
 
 // CJS (CommonJS)
