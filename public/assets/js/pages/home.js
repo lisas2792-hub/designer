@@ -1,0 +1,1176 @@
+// 主頁專屬程式（整合 projects/password 等）
+
+// 控制URL名稱 跟登入後的使用者名稱與顯示代表角色
+function sanitize(s){
+    return String(s).replace(/[<>&"']/g, c => (
+    {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;','\'':'&#39;'}[c]
+    ));
+}
+
+// 取得目前使用者（從 ?username= 取）
+function getCurrentUsername(){
+    const params = new URLSearchParams(location.search);
+    const u = params.get('username');
+    return u;
+}
+
+// API 幫手：根據是否 file:// 做本機/同網域
+const API_BASE = location.protocol.startsWith("http") ? "" : "http://127.0.0.1:3000";
+const authToken = {
+    get: () => localStorage.getItem("AUTH_TOKEN") || "",
+    set: (t) => localStorage.setItem("AUTH_TOKEN", t || ""),
+    clear: () => localStorage.removeItem("AUTH_TOKEN"),
+};
+
+async function apiFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    const t = authToken.get();
+    if (t) headers.set("Authorization", "Bearer " + t);
+    const res = await fetch(url, { credentials: "include", ...options, headers });
+    return res;
+}
+
+
+
+const API = {
+    // 修改密碼 API
+    auth: {
+        login:  API_BASE + "/api/auth/login",
+        me:     API_BASE + "/api/auth/me",
+        changePassword: API_BASE + "/api/auth/change-password",
+        logout: API_BASE + "/api/auth/logout",
+    },
+    projects: {
+        list:   API_BASE + "/api/projects",
+        create: API_BASE + "/api/projects",
+        update: (id) => API_BASE + "/api/projects/" + id,
+        remove: (id) => API_BASE + "/api/projects/" + id,
+    },
+    responsibleUserOptions: API_BASE + "/api/responsible-user/options",
+    stage: {
+        // ⬇️ 這行改成新的後端路徑（用 DB id）
+        plan:   (projectDbId) => API_BASE + `/api/stageplan/${projectDbId}/stage-plan`,
+
+        // 下面兩支先保持原本舊前綴（你的後端目前仍有 /api/projects/... 對應）
+        done:   (projectDbId, stageNo) => API_BASE + `/api/projects/${projectDbId}/stages/${stageNo}/complete`,
+        list:   (projectDbId) => API_BASE + `/api/projects/${projectDbId}/stages`,
+
+        // 上傳走「案件編號」(projectNo) 的路徑，後端 stageupload 仍掛在 /api/projects/...，維持不變
+        upload: (projectNo,  stageNo) => API_BASE + `/api/projects/${projectNo}/stages/${stageNo}/upload`,
+    },
+};
+
+// stage 對應 class 的 map
+const stageClassMap = { waiting: 'status-waiting', design: 'status-design', build: 'status-build' };
+const stageValueMap = { 0:'waiting', 1:'design', 2:'build' };
+
+// 保留目前登入者資訊（供建立專案用）
+window.__ME__ = null;  // 建立者資訊由此帶入後端
+
+/* 以 DB id 暫存當前列表資料，供編輯填入 */
+const projectsById = new Map();
+function upsertProjectIntoMap(p){
+    projectsById.set(String(p.id), p);   // 以字串為 key
+}
+
+// 開機：撈使用者 + 專案清單
+(async function boot(){
+    try {
+    const res = await apiFetch(API.auth.me); // 帶 token
+    if (!res.ok) throw new Error("fetch /me failed");
+    const json = await res.json();
+    const me = json?.data || json; // 同時支援 {ok,data} 或直接物件
+    window.__ME__ = me;
+    document.getElementById('accountName').textContent = me.username || me.name || '—';
+    const roleCode  = (me.role_code || me.role || '').toString().trim();
+    const roleLabel = me.role_label || (roleCode === 'admin' ? '系統管理員' : (roleCode ? '一般會員' : '—'));
+    document.getElementById('accountRole').textContent = roleLabel;
+    } catch (err) {
+    console.error("[boot] failed:", err);
+    document.getElementById('accountName').textContent ||= '—';
+    document.getElementById('accountRole').textContent ||= '—';
+    }
+
+    await loadAndRenderProjects();
+})();
+
+// 從後端載入專案並渲染
+async function loadAndRenderProjects(){
+    const grid = document.getElementById('projectsGrid');
+    grid.innerHTML = ""; // 先清空
+    try{
+    const res = await apiFetch(API.projects.list);
+    const data = await res.json();
+    const ok = (data?.ok !== undefined) ? data.ok : res.ok;
+    if(!ok) throw new Error(data?.message || "load failed");
+    const rows = data?.data || data || [];
+
+    /* 同步快取 */
+    projectsById.clear();
+
+    for(const p of rows){
+        projectsById.set(String(p.id), p);
+        grid.appendChild(renderProjectRow(p));
+    }
+    }catch(e){
+    console.error("load projects failed:", e);
+    grid.innerHTML = `<div style="padding:12px;color:#b91c1c">載入失敗：${sanitize(e.message)}</div>`;
+    }
+
+    // 載入完資料就先套用一次目前頁簽的顯示規則
+    applyFilter();
+}
+
+// 產生一列 DOM（含 8 個任務格）
+function renderProjectRow(p){
+    // p 來自 v_project：包含 id, project_id, name, stage_code 或 stage_id 或 stage
+    const currentStage = (p.stage_code || stageValueMap[p.stage_id] || 'waiting');
+
+    const row = document.createElement('div');
+    row.className = `project-row mode-default ${stageClassMap[currentStage] || ''}`;
+    row.dataset.dbId = String(p.id);              // 真正 DB id（之後 PATCH 用）
+    row.dataset.projectId = p.project_id; // 顯示的編號
+
+    // 判斷是否完成
+    const isDone = p.stage_id === 3;
+    if (isDone) row.classList.add('is-done');
+    //把 updated_at 正規化後塞進 dataset（供已完成分頁排序）
+    {
+    const u = p.updated_at || p.updatedAt || p.updated_at_ts || null;
+    if (u) {
+        const iso = new Date(u).toISOString();
+        if (!Number.isNaN(Date.parse(iso))) {
+        row.dataset.updatedAt = iso;          
+        }
+    } else {
+        row.dataset.updatedAt = '';               // 沒時間資料 → 排後面
+    }
+    }
+
+    // 從後端載入燈號，並把 8 格上色（none / warn / danger / done）
+    async function loadStageLights(p, rowEl){
+    try{
+        // 若沒有開始日/工期，多半是新案 → 直接清空狀態，不拋錯
+        // 但我們仍呼叫 API，因為後端會用 DB 值；若 DB 也沒有就回 400
+        const url = API.stage.plan(p.id);
+        const res = await apiFetch(url);
+        const json = await res.json().catch(()=>null);
+
+        // 失敗就不動，維持預設灰底
+        if(!res.ok || !json || json.ok === false){ return; }
+
+        const stages = json.data?.stages || [];
+        const cellByNo = {};
+        rowEl.querySelectorAll('.task-cell').forEach(el=>{
+        const n = Number(el.dataset.stageNo || 0);
+        if(n>=1 && n<=8) cellByNo[n] = el;
+        el.dataset.state = '';  // 清空
+        });
+
+        stages.forEach(s=>{
+        const cell = cellByNo[s.no];
+        if(!cell) return;
+        if(s.status === 'green')  cell.dataset.state = 'done';     // 綠燈
+        else if(s.status === 'red')   cell.dataset.state = 'danger'; // 紅燈
+        else if(s.status === 'orange')cell.dataset.state = 'warn';   // 橘燈
+        else cell.dataset.state = ''; // 一般
+        });
+    }catch(e){
+        console.warn('[stage-plan] load failed for project', p.id, e);
+    }
+    }
+
+    // 綁定點擊每一格：點一下 → 送出完成（覆蓋那一階段）→ 該格變綠
+    function bindStageCellClicks(rowEl, p){
+    rowEl.querySelectorAll('.task-cell').forEach(cell=>{
+        cell.addEventListener('click', async ()=>{
+        const no = Number(cell.dataset.stageNo || 0);
+        if(!no) return;
+
+        window.openStageUpload(p.project_id, no, cell);
+
+        });
+    });
+    }
+
+
+    //把 created_at 正規化後塞到 dataset（供「全部」分頁排序）
+    {
+    const c = p.created_at || p.createdAt || null;
+    if (c) {
+        const iso = new Date(c).toISOString();
+        if (!Number.isNaN(Date.parse(iso))) {
+        row.dataset.createdAt = iso;          
+        }
+    } else {
+        row.dataset.createdAt = '';              // 沒時間資料 → 排後面
+    }
+    }
+
+    // 階段下拉(未完成)
+    const cellStage = document.createElement('div');
+    cellStage.className = 'cell-stage';
+
+    const sel = document.createElement('select');
+    sel.className = 'stage-select';
+    sel.innerHTML = `
+    <option value="0">等待</option>
+    <option value="1">設計</option>
+    <option value="2">施工</option>
+    `;
+    sel.value = String(p.stage_id ?? 0);
+
+    // 完成列先鎖定下拉；在「全部/已完成」頁簽會被替換成徽章
+    sel.disabled = isDone;
+
+    /* ===== 視窗們（全域只掛一次，避免重複宣告） ===== */
+    if (!window.openStageMetaDialogRequired) {
+    // 缺資料時用：必填輸入
+    window.openStageMetaDialogRequired = async function({ title, start_date=null, estimated_days=null } = {}){
+        const { isConfirmed, value } = await Swal.fire({
+        title: title || '請填寫階段資訊',
+        html: `
+            <div style="text-align:left">
+            <label style="display:block;margin:6px 0 4px">開始日期（必填）</label>
+            <input id="swal-input-date" type="date" class="swal2-input" style="width:80%;box-sizing:border-box" value="${start_date ?? ''}">
+            <label style="display:block;margin:10px 0 4px">工期天數（必填）</label>
+            <input id="swal-input-days" type="number" min="1" step="1" placeholder="天數" class="swal2-input" style="width:80%;box-sizing:border-box" value="${estimated_days ?? ''}">
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: '確認',
+        cancelButtonText: '取消',
+        preConfirm: () => {
+            const d = document.getElementById('swal-input-date').value;
+            const daysStr = document.getElementById('swal-input-days').value.trim();
+            if (!d) { Swal.showValidationMessage('請填寫「開始日期」'); return false; }
+            if (daysStr === '') { Swal.showValidationMessage('請填寫「工期天數」'); return false; }
+            const n = Number(daysStr);
+            if (!Number.isFinite(n) || n <= 0) { Swal.showValidationMessage('「工期天數」必須 > 0 的整數'); return false; }
+            return { start_date: d, estimated_days: n };
+        }
+        });
+        return isConfirmed ? value : null;
+    };
+    }
+
+    if (!window.confirmStageWithExisting) {
+    // 已有資料時用：顯示現有值→ 確認 / 修改 / 取消
+    window.confirmStageWithExisting = async function({ title, start_date, estimated_days }){
+        const { isConfirmed, isDenied } = await Swal.fire({
+        icon: 'question',
+        title: title || '確認階段資訊',
+        html: `
+            <div style="text-align:left">
+            <div style="margin:6px 0"><strong>開始日期：</strong>${start_date}</div>
+            <div style="margin:6px 0"><strong>工期天數：</strong>${estimated_days} 天</div>
+            </div>
+        `,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: '確認使用這些值',
+        denyButtonText: '我要修改',
+        cancelButtonText: '取消',
+        });
+        return { useExisting: isConfirmed, editInstead: isDenied };
+    };
+    }
+
+    /* ===== 變更事件：非等待 → 先看有沒有現有值；等待 → 只改階段，不動日期/天數 ===== */
+    sel.addEventListener('change', async (e) => {
+    const prevVal = Number(p.stage_id ?? 0);
+    const newVal  = Number(e.target.value);
+    const newCode = stageValueMap[newVal] || 'waiting';
+
+    if (newVal !== 0) {
+        // 非等待：若已有值 → 先顯示確認；沒有值 → 直接開必填輸入
+        if (p.start_date && p.estimated_days != null) {
+        const { useExisting, editInstead } = await window.confirmStageWithExisting({
+            title: newVal === 1 ? '切換到「設計」' :
+                newVal === 2 ? '切換到「施工」' : '切換階段',
+            start_date: p.start_date,
+            estimated_days: p.estimated_days
+        });
+
+        if (!useExisting && !editInstead) {
+            // 使用者取消 → 還原
+            sel.value = String(prevVal);
+            return;
+        }
+
+        let start_date = p.start_date;
+        let estimated_days = p.estimated_days;
+
+        if (editInstead) {
+            // 想修改 → 打開必填輸入視窗
+            const got = await window.openStageMetaDialogRequired({
+            title: '修改階段資訊',
+            start_date,
+            estimated_days
+            });
+            if (!got) {
+            sel.value = String(prevVal);
+            return;
+            }
+            start_date = got.start_date;
+            estimated_days = got.estimated_days;
+        }
+
+        // 更新樣式
+        row.classList.remove('status-waiting','status-design','status-build');
+        row.classList.add(stageClassMap[newCode] || '');
+
+        // 標髒（用現有或修改後的值）
+        markDirty(p.id, {
+            stage_id: newVal,
+            start_date,
+            estimated_days
+        });
+
+        // 前端模型同步
+        p.stage_id       = newVal;
+        p.stage          = newCode;
+        p.stage_code     = newCode;
+        p.start_date     = start_date;
+        p.estimated_days = estimated_days;
+
+        } else {
+        // 沒有完整值 → 直接要求必填
+        const got = await window.openStageMetaDialogRequired({
+            title: newVal === 1 ? '設定「設計」階段' :
+                newVal === 2 ? '設定「施工」階段' : '設定階段資訊',
+            start_date: p.start_date ?? null,
+            estimated_days: p.estimated_days ?? null
+        });
+        if (!got) {
+            sel.value = String(prevVal);
+            return;
+        }
+
+        row.classList.remove('status-waiting','status-design','status-build');
+        row.classList.add(stageClassMap[newCode] || '');
+
+        markDirty(p.id, {
+            stage_id: newVal,
+            start_date: got.start_date,
+            estimated_days: got.estimated_days
+        });
+
+        p.stage_id       = newVal;
+        p.stage          = newCode;
+        p.stage_code     = newCode;
+        p.start_date     = got.start_date;
+        p.estimated_days = got.estimated_days;
+        }
+
+    } else {
+        // 等待：只更新階段；保留日期與天數原值（不清空、不要求輸入）
+        row.classList.remove('status-waiting','status-design','status-build');
+        row.classList.add(stageClassMap['waiting'] || '');
+
+        markDirty(p.id, { stage_id: 0 }); // 僅標記階段改變
+
+        p.stage_id   = 0;
+        p.stage      = 'waiting';
+        p.stage_code = 'waiting';
+        // p.start_date / p.estimated_days 維持原值
+    }
+    });
+
+    cellStage.appendChild(sel);
+    row.appendChild(cellStage);
+
+
+
+
+    // 編號 & 案名
+    const cellId = document.createElement('div');
+    cellId.className = 'cell-id';
+    cellId.textContent = p.project_id;
+    row.appendChild(cellId);
+
+    const cellName = document.createElement('div');
+    cellName.className = 'cell-name';
+    cellName.textContent = p.name;
+    row.appendChild(cellName);
+
+    // 固定的 8 個工作格（預設狀態為一般；若後端有狀態資料，可套上 data-state）
+    const taskLabels = ["丈量","案例分析","平面放樣","平面圖","平面系統圖","立面框體圖","立面圖","施工圖"];
+    taskLabels.forEach((label, idx)=>{
+    const no = idx + 1; // 1..8
+    const c = document.createElement('div');
+    c.className = 'task-cell';
+    c.dataset.stageNo = String(no);         // <── 給後續掛狀態/點擊用
+    c.innerHTML = `<span>${label}</span>`;
+    row.appendChild(c);
+    });
+    bindStageCellClicks(row, p);       // 綁定點擊 → 綠燈 + POST 完成
+    loadStageLights(p, row);           // 從後端撈計畫 → 橘/紅/綠
+
+    // ===== 動作按鈕（編輯 / 刪除 / 已完成） =====
+
+    // 編輯（✏️）
+    const btnEdit = document.createElement('button');
+    btnEdit.className = 'action-btn js-action';
+    btnEdit.dataset.action = 'edit';
+    btnEdit.dataset.dbId   = String(p.id);
+    btnEdit.title = '編輯';
+    btnEdit.setAttribute('aria-label', '編輯');
+    btnEdit.textContent = '✏️';
+    row.appendChild(btnEdit);
+
+    // 刪除（🗑️）
+    const btnDelete = document.createElement('button');
+    btnDelete.className = 'action-btn js-action';
+    btnDelete.dataset.action = 'delete';
+    btnDelete.dataset.dbId = String(p.id);
+    btnDelete.title = '刪除';
+    btnDelete.setAttribute('aria-label', '刪除');
+    btnDelete.textContent = '🗑️';
+    row.appendChild(btnDelete);
+
+    // 已完成（✅）
+    const btnDone = document.createElement('button');
+    btnDone.className = 'action-btn js-action action-done';
+    btnDone.dataset.action = 'done';
+    btnDone.dataset.dbId   = String(p.id);
+    btnDone.title = '標記為已完成';
+    btnDone.setAttribute('aria-label', '標記為已完成');
+    btnDone.textContent = '✅';
+    row.appendChild(btnDone);
+
+    return row;
+}
+
+// 標記 dirty（合併變更）
+const dirty = new Map(); // key: project.id (數字)，val: 局部更新物件
+function markDirty(id, patch) {
+  const prev = dirty.get(id) || {};
+  dirty.set(id, { ...prev, ...patch });
+
+  // ✅ 明確顯示「未儲存提示」
+  const notice = document.getElementById('unsavedNotice');
+  if (notice) {
+    notice.style.display = 'block';   // 明確顯示
+    notice.classList.add('is-visible'); // 額外加 class 控制樣式（更保險）
+  }
+}
+
+// ===== 工具：隱藏提示 + 丟掉未儲存 =====
+function hideUnsavedNotice() {
+  const el = document.getElementById('unsavedNotice');
+  if (el) { el.style.display = 'none'; el.classList.remove('is-visible'); }
+}
+
+async function discardUnsavedChanges({ refresh = true } = {}) {
+  try { dirty.clear(); } catch {}
+  hideUnsavedNotice();
+  // 重新從後端撈資料 → 把剛剛在前端動到的 select / 樣式全部還原
+  if (refresh) {
+    try { await loadAndRenderProjects(); } catch {}
+  }
+}
+
+
+// ===== 未儲存守門員：關頁提示 / 導覽攔截 =====
+function hasUnsavedChanges() {
+    return dirty && typeof dirty.size === 'number' && dirty.size > 0;
+}
+
+// 關閉或重新整理頁面 → 原生 beforeunload 提示
+window.addEventListener('beforeunload', (e) => {
+    if (!hasUnsavedChanges()) return;
+    e.preventDefault();
+e.returnValue = '';
+});
+
+// 通用詢問：未存就跳 SweetAlert；回傳 true 代表可以繼續
+async function confirmNavigateWhenDirty() {
+    if (!hasUnsavedChanges()) return true;
+    const r = await Swal.fire({
+        icon: 'warning',
+        title: '尚未儲存變更',
+        html: '你剛剛有修改尚未按「儲存」。<br>確定要離開或切換嗎？',
+        showCancelButton: true,
+        confirmButtonText: '仍然離開',
+        cancelButtonText: '先去儲存',
+    });
+    return r.isConfirmed;
+}
+
+
+// 分頁切換 控制器
+const navButtons = document.querySelectorAll('.nav button');
+const views = {
+    projects: document.getElementById('view-projects'),
+    password: document.getElementById('view-password'),
+};
+const titleMap = {
+    projects: '所有專案進度',
+    password: '修改密碼'
+};
+
+navButtons.forEach(btn => {
+  btn.addEventListener('click', async () => {
+    // 若沒有未存就照常；有未存 → 詢問
+    if (dirty.size > 0) {
+      const ok = await confirmNavigateWhenDirty(); // 你已經有這函式
+      if (!ok) return; // 使用者選「先去儲存」
+      // 使用者選「仍要離開」→ 丟掉未存 & 還原畫面
+      await discardUnsavedChanges({ refresh: true });
+    }
+
+    // 繼續切換視圖
+    navButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const key = btn.dataset.view;
+    Object.values(views).forEach(v => v.style.display = 'none');
+    views[key].style.display = '';
+    document.getElementById('pageTitle').textContent = titleMap[key];
+  });
+});
+
+
+
+// 共用送出邏輯（新增 / 編輯都會呼叫這裡）
+async function saveProject(body){
+    const isEdit = !!body.id;   // 有 id = 編輯，沒有 id = 新增
+    const url = isEdit ? API.projects.update(body.id) : API.projects.create;
+
+    const res = await apiFetch(url, {
+    method: isEdit ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || "失敗");
+
+    alert(isEdit ? "已更新專案" : "已新增專案");
+    await loadAndRenderProjects();
+}
+
+
+// ✅ 儲存批次更新（加入 SweetAlert loading + 自動刷新燈號）
+document.getElementById('saveBtn').addEventListener('click', async () => {
+    if (dirty.size === 0) {
+    Swal.fire({ icon: 'info', title: '沒有變更', timer: 800, showConfirmButton: false });
+    return;
+    }
+
+    Swal.fire({
+    title: '更新中...',
+    allowOutsideClick: false,
+    didOpen: () => Swal.showLoading()
+    });
+
+    try {
+    // 平行送出所有變更
+    const jobs = Array.from(dirty.entries()).map(([id, patch]) =>
+        apiFetch(API.projects.update(id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+        }).then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        return id;
+        })
+    );
+
+    const results = await Promise.allSettled(jobs);
+    const successIds = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+
+    // 移除成功的 dirty
+    for (const id of successIds) dirty.delete(id);
+
+    Swal.close();
+
+    if (successIds.length > 0) {
+        Swal.fire({ icon: 'success', title: `已更新 ${successIds.length} 筆`, timer: 1000, showConfirmButton: false });
+    }
+
+    // 更新後重新載入所有專案，刷新燈號
+    await loadAndRenderProjects();
+
+    // 若全部成功，清除未儲存提示
+    const notice = document.getElementById('unsavedNotice');
+    if (notice) {
+        notice.style.display = 'none';
+        notice.classList.remove('is-visible');
+    }
+
+    } catch (e) {
+    Swal.close();
+    console.error(e);
+    Swal.fire('錯誤', '更新時發生錯誤', 'error');
+    }
+});
+
+
+// 修改密碼
+document.getElementById('savePwd').addEventListener('click', async () => {
+const oldPwd = document.getElementById('oldPwd').value.trim();
+const newPwd = document.getElementById('newPwd').value.trim();
+const newPwd2 = document.getElementById('newPwd2').value.trim();
+const msg = document.getElementById('pwdMsg');
+
+// 清訊息
+msg.style.color = '#6b7280';
+msg.textContent = '';
+
+// 基本驗證
+if (!oldPwd || !newPwd || !newPwd2) {
+    msg.style.color = '#b91c1c';
+    msg.textContent = '請完整填寫所有欄位';
+    return;
+}
+if (newPwd.length < 6) {
+    msg.style.color = '#b91c1c';
+    msg.textContent = '新密碼長度需至少 6 碼';
+    return;
+}
+// 若要強制「至少 6 碼且需包含英文字母與數字」→ 打開下一行註解：
+// if (!/(?=.*[A-Za-z])(?=.*\d).{6,}/.test(newPwd)) { msg.style.color='#b91c1c'; msg.textContent='密碼需至少6碼，且包含英文字母與數字'; return; }
+
+if (newPwd !== newPwd2) {
+    msg.style.color = '#b91c1c';
+    msg.textContent = '兩次輸入的新密碼不一致';
+    return;
+}
+
+// 鎖按鈕避免重複送出
+const btn = document.getElementById('savePwd');
+const origText = btn.textContent;
+btn.disabled = true;
+btn.textContent = '送出中…';
+
+try {
+    const res = await apiFetch(API.auth.changePassword, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        current_password: oldPwd,
+        new_password: newPwd,
+        confirm_password: newPwd2
+    })
+    });
+
+    if (res.status === 401) {
+    msg.style.color = '#b45309';
+    msg.textContent = '尚未登入或登入已過期，請重新登入';
+    return;
+    }
+
+    // 成功：後端可能回 200 或 204
+    if (res.ok) {
+    const data = await res.json().catch(()=>({}));
+    if (data.token) authToken.set(data.token); // 若有回傳新 token 就更新
+
+    msg.style.color = '#065f46';
+    msg.textContent = '密碼已更新，其他裝置已登出';
+    // 清空欄位
+    document.getElementById('oldPwd').value = '';
+    document.getElementById('newPwd').value = '';
+    document.getElementById('newPwd2').value = '';
+    return;
+    }
+
+    // 其它錯誤讀取訊息
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+    msg.style.color = '#b91c1c';
+    msg.textContent = data.msg || '修改密碼失敗，請稍後再試';
+} catch (err) {
+    console.error('[change-password] failed', err);
+    msg.style.color = '#b91c1c';
+    msg.textContent = '連線異常，請稍後再試';
+} finally {
+    btn.disabled = false;
+    btn.textContent = origText || '儲存';
+}
+});
+
+
+
+// 登出(登出後會整頁重載)
+document.getElementById("logoutBtn").addEventListener("click", async (ev) => {
+  ev.preventDefault();
+  if (!(await confirmNavigateWhenDirty())) return;
+
+  try { await apiFetch(API.auth.logout, { method: 'POST' }); } catch {}
+  authToken.clear();
+  sessionStorage.clear();
+  window.location.href = "/login.html";
+});
+
+
+// Modal 控制 + 列表事件 + 頁簽邏輯 
+const addBtn = document.getElementById('addProjectBtn');
+const modal = document.getElementById('createModal');
+const closeBtn = document.getElementById('modalCloseBtn');
+
+// 新增 / 編輯共用：載入負責人；selectedId 可為 null/undefined/''（代表未指派）
+async function loadResponsibleOptionsInto(selectEl, selectedId = '') {
+    try {
+    // 先清到只剩未指派，避免舊選項殘留
+    selectEl.innerHTML = '<option value="">（未指派）</option>';
+
+    const res = await apiFetch(API.responsibleUserOptions);
+    const json = await res.json();
+    const users = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+
+    for (const u of users) {
+        const opt = document.createElement('option');
+        opt.value = String(u.id);
+        opt.textContent = u.name || u.username || String(u.id);
+        selectEl.appendChild(opt);
+    }
+
+    // —— 核心：嚴謹選值（找不到就選第 0 個）
+    const target = (selectedId === null || selectedId === undefined) ? '' : String(selectedId).trim();
+    const match  = Array.from(selectEl.options).find(o => String(o.value).trim() === target);
+
+    if (match) {
+        selectEl.value = match.value;     // 確保用 options 中的 value
+    } else {
+        selectEl.selectedIndex = 0;       // 強制回到「（未指派）」
+    }
+
+    // 非 admin 一律鎖定
+    const role = (window.__ME__?.role_code || window.__ME__?.role || '').toString().trim();
+    selectEl.disabled = (role !== 'admin' && role !== '系統管理員');
+
+    } catch (e) {
+    console.warn('load responsible users failed', e);
+    // 發生錯誤也保證回到未指派
+    selectEl.innerHTML = '<option value="">（未指派）</option>';
+    selectEl.selectedIndex = 0;
+
+    // 失敗時同樣鎖定，避免送出奇怪值
+    selectEl.disabled = true;
+    }
+}
+
+
+// 打開「新增」：create 模式
+addBtn.addEventListener('click', async () => {
+    modal.dataset.mode = 'create';          /* 🆕 新增 */
+    modal.dataset.editId = '';              /* 🆕 新增 */
+    document.querySelector('#createModal .modal-title').textContent = '新增專案';
+    document.getElementById('f_submit').textContent = '送出';
+
+    modal.style.display = 'flex';
+    await loadResponsibleOptionsInto(document.getElementById('f_responsible_user'), '');
+
+    // 清空欄位
+    ['f_project_id','f_name','f_start_date','f_estimated_days'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f_stage').value = '0';
+    document.getElementById('f_responsible_user').value = '';
+    updateDuePreview();
+
+    // 新增時允許編輯編號
+    document.getElementById('f_project_id').disabled = false;
+});
+
+// 關閉 Modal
+function closeModal(){
+    modal.style.display = 'none';
+    /* 復原狀態 */
+    modal.dataset.mode = 'create';
+    modal.dataset.editId = '';
+    document.getElementById('f_project_id').disabled = false;
+}
+closeBtn.addEventListener('click', closeModal);
+document.getElementById('f_cancel').addEventListener('click', closeModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+// due 預覽
+function updateDuePreview() {
+    const s = document.getElementById('f_start_date').value; // 'YYYY-MM-DD'
+    const d = parseInt(document.getElementById('f_estimated_days').value, 10);
+    const el = document.getElementById('f_due_preview');
+
+    if (s && Number.isInteger(d) && d > 0) {
+    // 解析 'YYYY-MM-DD'，只做「天」級運算，避免時區
+    const [Y, M, D] = s.split('-').map(n => parseInt(n, 10));
+    const base = new Date(Y, M - 1, D);              // 用本地 Date，但不輸出 ISO
+    base.setHours(12, 0, 0, 0);                      // 放中午，避免夏令/跨日邊界
+    // 與後端規則一致：planned_end = start + (d - 1)
+    base.setDate(base.getDate() + (d - 1));
+
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const day = String(base.getDate()).padStart(2, '0');
+    el.textContent = `預計完工日：${y}-${m}-${day}`;
+    } else {
+    el.textContent = '預計完工日：—';
+    }
+}
+document.getElementById('f_start_date').addEventListener('change', updateDuePreview);
+document.getElementById('f_estimated_days').addEventListener('input', updateDuePreview);
+
+/* 打開「編輯」的函式 */
+async function openEditModal(p){
+    const titleEl   = document.querySelector('#createModal .modal-title');
+    const submitBtn = document.getElementById('f_submit');
+
+    modal.dataset.mode = 'edit';
+    modal.dataset.editId = String(p.id);
+
+    titleEl.textContent = '編輯專案';
+    submitBtn.textContent = '更新';
+
+    modal.style.display = 'flex';
+
+    const selRU = document.getElementById('f_responsible_user');
+    await loadResponsibleOptionsInto(selRU, (p.responsible_user_id == null || p.responsible_user_id === '') ? '' : String(p.responsible_user_id));
+
+    document.getElementById('f_project_id').value = p.project_id ?? '';
+    document.getElementById('f_name').value       = p.name ?? '';
+    document.getElementById('f_stage').value      = String(p.stage_id ?? 0);
+    document.getElementById('f_start_date').value = p.start_date ?? '';
+    document.getElementById('f_estimated_days').value = (p.estimated_days ?? '') === null ? '' : (p.estimated_days ?? '');
+
+    updateDuePreview();
+
+    // 編輯時鎖定 project_id（暫時鎖定，如需可改為可編輯）
+    document.getElementById('f_project_id').disabled = true;
+}
+
+// ===== Tabs / 篩選 / 版型切換 =====
+let currentFilter = 'ongoing'; // 進行中(default)
+
+function renderHeaderFor(filter){
+    const head = document.getElementById('gridHeader');
+    if(!head) return;
+
+    head.classList.remove('mode-done');
+    head.classList.add('mode-default');
+
+    head.innerHTML = `
+    <div>階段</div>
+    <div>編號</div>
+    <div>案名</div>
+    <div class="action-head"></div>
+    <div class="action-head"></div>
+    <div class="action-head"></div>
+    `;
+}
+
+function switchRowLayoutFor(filter){
+    const rows = document.querySelectorAll('#projectsGrid .project-row');
+    rows.forEach(r => {
+    r.classList.add('mode-default');
+    r.classList.remove('mode-done');
+    });
+}
+
+// 把已完成列的「階段」欄換成徽章；離開時還原
+function refreshStageCellsForCurrentTab(){
+    const rows = document.querySelectorAll('#projectsGrid .project-row');
+    rows.forEach(row => {
+    const stageCell = row.querySelector('.cell-stage');
+    if (!stageCell) return;
+
+    const isDoneRow = row.classList.contains('is-done');
+
+    // ✅ 在「全部」或「已完成」頁簽，把完成列顯示為徽章
+    const shouldShowBadge = isDoneRow && (currentFilter === 'all' || currentFilter === 'done');
+
+    if (shouldShowBadge) {
+        if (!stageCell.dataset.origHtml) {
+        stageCell.dataset.origHtml = stageCell.innerHTML; // 暫存原始 select
+        }
+        stageCell.innerHTML = '<div class="badge-done">已完成</div>';
+    } else {
+        // 進行中分頁或非完成列 → 還原 select
+        if (stageCell.dataset.origHtml) {
+        stageCell.innerHTML = stageCell.dataset.origHtml;
+        delete stageCell.dataset.origHtml;
+        }
+    }
+
+    // 在進行中分頁時，完成列的 select 仍鎖定避免誤改
+    const sel = stageCell.querySelector('select');
+    if (sel) sel.disabled = isDoneRow;
+    });
+}
+
+
+
+function applyFilter(){
+    const rows = document.querySelectorAll('#projectsGrid .project-row');
+
+    rows.forEach(row => {
+    const done = row.classList.contains('is-done');
+    
+    if (currentFilter === 'done') {
+        row.style.display = done ? '' : 'none';
+    } else if (currentFilter === 'ongoing') {
+        row.style.display = done ? 'none' : '';
+    } else {
+        row.style.display = '';
+    }
+
+
+    // ✅ 顯示規則：在「已完成」與「全部」頁簽，已完成的案子都隱藏 ✅
+    const btnDone = row.querySelector('.action-done');
+    if (btnDone) {
+        btnDone.style.display = done ? 'none' : '';
+    }
+    });
+
+    // Legend 只在進行中顯示
+    const legend = document.getElementById('legendBar');
+    if (legend) legend.style.display = (currentFilter === 'ongoing') ? '' : 'none';
+
+    // 表頭內容 + 版型切換 + 階段徽章/下拉替換
+    renderHeaderFor(currentFilter);
+    switchRowLayoutFor(currentFilter);
+    refreshStageCellsForCurrentTab();
+
+    // 只在「已完成」分頁，依 updatedAt 由新到舊排序
+    if (currentFilter === 'done') {
+    const grid = document.getElementById('projectsGrid');
+    const rows = Array.from(grid.querySelectorAll('.project-row.is-done'));
+    rows.sort((a, b) => {
+        const ua = a.dataset.updatedAt || '';
+        const ub = b.dataset.updatedAt || '';
+        return ub.localeCompare(ua); // 新在前
+    });
+    rows.forEach(r => grid.appendChild(r)); // append 會移動節點
+    }
+
+    //在「全部」分頁依 created_at 由新到舊排序
+    if (currentFilter === 'all') {
+    const grid = document.getElementById('projectsGrid');
+    const rows = Array.from(grid.querySelectorAll('.project-row'));
+    rows.sort((a, b) => {
+        const ca = a.dataset.createdAt || '';   // 期待 ISO 字串
+        const cb = b.dataset.createdAt || '';
+        return cb.localeCompare(ca);            // 新在前
+    });
+    rows.forEach(r => grid.appendChild(r));   // 依新順序重掛
+    }
+}
+
+
+// Tabs 點擊
+document.addEventListener('click', async (e) => {
+  const tab = e.target.closest('.tabs-row .tab');
+  if (!tab) return;
+
+  const isActive = tab.getAttribute('aria-selected') === 'true';
+  if (isActive) return;
+
+  if (dirty.size > 0) {
+    const ok = await confirmNavigateWhenDirty();
+    if (!ok) return;
+    await discardUnsavedChanges({ refresh: true });
+  }
+
+  document.querySelectorAll('.tabs-row .tab').forEach(t => t.setAttribute('aria-selected','false'));
+  tab.setAttribute('aria-selected','true');
+  currentFilter = tab.dataset.filter || 'ongoing';
+  applyFilter();
+});
+
+
+/* 列表上的 ✏️ 🗑️ ✅ */
+document.getElementById('projectsGrid').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.js-action');
+    if(!btn) return;
+
+    const action = btn.dataset.action;
+    const idStr  = btn.dataset.dbId;     // dataset 一律字串
+    const p      = projectsById.get(idStr);
+
+    if(action === 'edit'){
+    if(!p){ alert('找不到資料'); return; }
+    openEditModal(p);
+    return;
+    }
+
+    if(action === 'delete'){
+    if(!p){ alert('找不到資料'); return; }
+    const ok = confirm(`確定要刪除「${p.project_id}｜${p.name}」嗎？`);
+    if(!ok) return;
+
+    try{
+        const res = await apiFetch(API.projects.remove(idStr), {
+        method: 'DELETE',
+        });
+        if(!res.ok){
+        const t = await res.text();
+        throw new Error(t || '刪除失敗');
+        }
+        // 刪除成功，從畫面移除這一列
+        btn.closest('.project-row')?.remove();
+        projectsById.delete(idStr);
+    }catch(err){
+        console.error('[DELETE] failed', err);
+        alert('刪除失敗：' + (err?.message || err));
+    }
+    return;
+    }
+
+    if(action === 'done'){
+    if(!p){ alert('找不到資料'); return; }
+    const ok = confirm(`要把「${p.project_id}｜${p.name}」標記為已完成嗎？`);
+    if(!ok) return;
+
+    try{
+        // 立即於前端標記完成
+        const rowEl = btn.closest('.project-row');
+        rowEl?.classList.add('is-done');
+
+        // 寫入已完成的當下時間 dataset，切到「已完成」立刻會排最上
+        rowEl.dataset.updatedAt = new Date().toISOString();
+
+        //（可選）後端同步，若尚未支援可註解
+        apiFetch(API.projects.update(idStr), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage_id:3 })
+        }).catch(()=>{});
+
+        applyFilter();
+        alert('已標記為已完成');
+    }catch(err){
+        console.error('[DONE] failed', err);
+        alert('操作失敗：' + (err?.message || err));
+    }
+    return;
+    }
+});
+
+// 送出（呼叫共用 saveProject）
+document.getElementById('f_submit').addEventListener('click', async () => {
+    const mode  = modal.dataset.mode || 'create'; /* 新增 */
+    const editId = modal.dataset.editId || null;  /* 編輯 */
+
+    const body = {
+    project_id: document.getElementById('f_project_id').value.trim(),  // text
+    name:       document.getElementById('f_name').value.trim(),        // text
+    stage_id:   Number(document.getElementById('f_stage').value),      // 數字
+    start_date: document.getElementById('f_start_date').value || null,
+    estimated_days: (()=>{ const v=document.getElementById('f_estimated_days').value; return v===''?null:Number(v) })(),
+    responsible_user_id: (()=>{ const v=document.getElementById('f_responsible_user').value; return v===''?null : String(v) })(),
+    // 從 __ME__ 帶入建立者（與後端欄位對齊）
+    creator_user_id: window.__ME__?.id ?? null,
+    creator_user_name: window.__ME__?.name ?? window.__ME__?.username ?? null
+    };
+
+    if(mode === 'edit' && editId){
+    body.id = Number(editId); /* id(每一專案在資料庫的id) -> PATCH 明確轉成數字 */
+    }
+
+
+    if (!body.project_id || !body.name) {
+    alert('請填寫：編號、案名');
+    return;
+    }
+
+    try {
+    await saveProject(body);
+    closeModal();
+    // 若是 create，清空欄位
+    if(mode !== 'edit'){
+        ['f_project_id','f_name','f_start_date','f_estimated_days'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('f_stage').value = '0';
+        document.getElementById('f_responsible_user').value = '';
+        updateDuePreview();
+    }
+    } catch (e) {
+    console.error('[SAVE] failed', e);
+    alert('操作失敗：' + (e?.message || e));
+    }
+});
+
+// 上傳對話框控制器（只初始化一次）
+(function initUploadOnce(){
+    if (window.__UPLOAD_WIRED__) return;
+    window.__UPLOAD_WIRED__ = true;
+
+    const uploadModal = document.getElementById('uploadModal');
+    const uploadInput = document.getElementById('uploadInput');
+    const chooseBtn   = document.getElementById('chooseFileBtn');
+    const cancelBtn   = document.getElementById('cancelUploadBtn');
+    const statusBox   = document.getElementById('uploadStatus');
+    const hintBox     = document.getElementById('uploadHint');
+
+    // 目前目標
+    let current = { projectNo: null, stageNo: null, cellEl: null };
+
+    // 打開上傳對話框 帶入 案件編號 + 階段 + 哪一格DOM
+    window.openStageUpload = async function(projectNo, stageNo, cellEl) {
+    current = { projectNo, stageNo, cellEl };
+    hintBox.textContent = `案件編號：${projectNo}　階段：${stageNo}`;
+    statusBox.innerHTML = '載入中…';
+    uploadInput.value = '';
+    uploadModal.style.display = 'flex';
+
+    try {
+    // 🔹 向後端查詢最後一次上傳記錄
+    const res = await apiFetch(`/api/projects/${projectNo}/stages/${stageNo}/last`);
+    const data = await res.json();
+
+    if (res.ok && data?.ok && data.file) {
+        const file = data.file;
+        const thumb = file.thumbnail_link || file.file_url;
+        const link = file.file_url;
+        statusBox.innerHTML = `
+        <div style="margin-bottom:8px;">最後上傳：</div>
+        <a href="${link}" target="_blank" style="display:inline-block;border:1px solid #ccc;border-radius:8px;overflow:hidden;">
+            <img src="${thumb}" style="width:100%;max-width:200px;display:block;">
+        </a>
+        <div style="font-size:13px;margin-top:6px;">點圖可開啟完整檔案</div>
+        `;
+    } else {
+        statusBox.textContent = '目前沒有上傳記錄';
+    }
+    } catch (err) {
+    console.warn('load last file failed', err);
+    statusBox.textContent = '無法取得上次上傳資訊';
+    }
+};
+
+
+    function closeUpload(){
+    uploadModal.style.display = 'none';
+    current = { projectNo: null, stageNo: null, cellEl: null };
+    }
+
+    chooseBtn.addEventListener('click', () => uploadInput.click());
+    cancelBtn.addEventListener('click', () => closeUpload());
+
+    // 選好檔案 → 立即上傳
+    uploadInput.addEventListener('change', async () => {
+    if (!uploadInput.files || uploadInput.files.length === 0) return;
+
+    statusBox.textContent = '上傳中…';
+    try {
+        const fd = new FormData();
+        for (const f of uploadInput.files) fd.append('files', f);
+
+        // **注意**：用「案件編號」(current.projectNo) 去打 /upload
+        // 自動帶 Authorization
+        const resp = await apiFetch(API.stage.upload(current.projectNo, current.stageNo), {
+        method: 'POST',
+        body: fd   // 不要自己設定 Content-Type，讓瀏覽器帶 boundary
+        });
+
+        const data = await resp.json().catch(()=>({}));
+        if (!resp.ok || !data.ok) throw new Error(data.error || '上傳失敗');
+
+        // 成功 → 把該格變綠（data-state="done"）
+        if (current.cellEl) current.cellEl.dataset.state = 'done';
+
+        statusBox.textContent = `✅ 已上傳 ${data.files?.length || uploadInput.files.length} 個檔案`;
+        setTimeout(() => closeUpload(), 700);
+    } catch (err) {
+        statusBox.textContent = `❌ 錯誤：${err.message || err}`;
+    }
+    });
+})();

@@ -1,0 +1,10 @@
+/* login.css：從 login.html 的 <style> 原封不動搬過來 */
+body{display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial;background:#f0f0f0}
+.card{width:320px;background:#fff;padding:24px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.12);text-align:center}
+input{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:8px}
+button{width:100%;padding:10px;margin-top:8px;border:none;border-radius:8px;background:#1976d2;color:#fff;font-size:16px;cursor:pointer}
+button:hover{background:#0b7dda}
+.msg{margin:8px 0;font-size:14px}
+.msg.error{color:#c62828}
+.msg.success{color:#2e7d32}
+a{display:inline-block;margin-top:10px;text-decoration:none;color:#1976d2}

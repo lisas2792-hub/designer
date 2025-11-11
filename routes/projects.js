@@ -9,7 +9,7 @@
 const { Router } = require("express");
 const dayjs = require("dayjs");
 const { pool } = require("../db");
-const { attachUser, requireAuth } = require("../middleware/auth"); // ★ NEW: 掛中介層
+// const { requireAuth } = require("../middleware/auth"); // ← server.js 已包住 /api，不必再加
 
 const {
   insertProject,
@@ -47,18 +47,18 @@ function calcDueDate(start_date, estimated_days) {
 function isAdminRole(role) {
   if (!role) return false;
   const r = String(role).toLowerCase();
-  // 依你們實際角色字串再增減
   return new Set(["admin", "system", "superadmin", "owner"]).has(r);
 }
 
 /** -------------------------------------------
  *  POST /api/projects  建立專案
- *  只用 *_user_id 當 FK；姓名欄位純展示（由 DB 讀 name）
+ *  （注意：此 router 被掛在 /api/projects）
+ *  → 這裡的路徑寫 "/" 就是 /api/projects
  * ------------------------------------------- */
-router.post("/projects", requireAuth, async (req, res) => { // ★ 建議保護
+router.post("/", /* requireAuth,*/ async (req, res) => {
   const client = await pool.connect();
   try {
-    console.log("[REQ BODY /api/projects]", JSON.stringify(req.body, null, 2));
+    console.log("[REQ BODY POST /api/projects]", JSON.stringify(req.body, null, 2));
 
     const {
       project_id,
@@ -113,7 +113,7 @@ router.post("/projects", requireAuth, async (req, res) => { // ★ 建議保護
       return res.status(400).json({
         ok: false,
         code: "CREATOR_NAME_MISSING",
-        message: "建立者在使用者表的姓名(name)為空，請先補上姓名",
+        message: "建立者姓名為空，請先補上",
       });
     }
 
@@ -210,13 +210,16 @@ router.post("/projects", requireAuth, async (req, res) => { // ★ 建議保護
     return res
       .status(500)
       .json({ ok: false, code: err.code || "INTERNAL_ERROR", message: err.detail || err.message || "Create failed" });
+  } finally {
+    // 確保釋放 client（避免連線洩漏）
+    try { /* client 在成功時 COMMIT 後已釋放；失敗時這裡釋放 */ client.release(); } catch {}
   }
 });
 
 /** -------------------------------------------
  *  GET /api/projects  取得列表（前 200 筆，依權限過濾）
  * ------------------------------------------- */
-router.get("/projects", requireAuth, async (req, res) => {
+router.get("/", /* requireAuth,*/ async (req, res) => {
   try {
     const viewerId = Number(req.user.id);
     const admin = isAdminRole(req.user.role);
@@ -233,7 +236,7 @@ router.get("/projects", requireAuth, async (req, res) => {
 /** -------------------------------------------
  *  GET /api/projects/:id  取得單筆（含權限檢查）
  * ------------------------------------------- */
-router.get("/projects/:id", requireAuth, async (req, res) => {
+router.get("/:id", /* requireAuth,*/ async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ ok: false, msg: "bad id" });
@@ -260,9 +263,8 @@ router.get("/projects/:id", requireAuth, async (req, res) => {
 
 /** -------------------------------------------
  *  PATCH /api/projects/:id  部分更新（自動重算 due_date）
- *  （此處是否要加權限可依你們規則：例如僅管理員或建立者/負責人可改）
  * ------------------------------------------- */
-router.patch("/projects/:id", requireAuth, async (req, res) => {
+router.patch("/:id", /* requireAuth,*/ async (req, res) => {
   const client = await pool.connect();
   try {
     const idNum = Number(req.params.id);
@@ -270,11 +272,11 @@ router.patch("/projects/:id", requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, message: "id invalid" });
     }
 
-    // ★ 先讀舊資料（repo）
+    // 先讀舊資料
     const prev = await getProjectForPatch(client, idNum);
     if (!prev) return res.status(404).json({ ok: false, message: "專案不存在" });
 
-    // （可選）加權限檢查
+    // （可選）權限檢查
     const admin = isAdminRole(req.user.role);
     const viewerId = Number(req.user.id);
     if (
@@ -285,7 +287,7 @@ router.patch("/projects/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ ok: false, message: "forbidden" });
     }
 
-    // ★ 正規化 body
+    // 正規化 body
     const raw = req.body || {};
     let nextResponsibleId;
     let nextResponsibleName = undefined;
@@ -368,14 +370,13 @@ router.patch("/projects/:id", requireAuth, async (req, res) => {
 });
 
 /** -------------------------------------------
- *  DELETE /api/projects/:id 刪除（視規則決定是否限管理員）
+ *  DELETE /api/projects/:id 刪除
  * ------------------------------------------- */
-router.delete("/projects/:id", requireAuth, async (req, res) => {
+router.delete("/:id", /* requireAuth,*/ async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ ok: false, message: "id invalid" });
 
-    // （可選）先讀舊資料做權限檢查
     const row = await getProjectById(pool, id);
     if (!row) return res.status(404).json({ ok: false, message: "not found" });
 

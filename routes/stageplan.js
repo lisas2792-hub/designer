@@ -1,15 +1,9 @@
 // routes/stageplan.js
+
 const express = require('express');
 const dayjs = require('dayjs');
-const utc = require('dayjs/plugin/utc');
-const tz  = require('dayjs/plugin/timezone');
-dayjs.extend(utc);
-dayjs.extend(tz);
-dayjs.tz.setDefault('Asia/Taipei'); // ✅ 台北時區，避免日期少一天
-
 const router = express.Router();
 const { pool } = require('../db');
-const { attachUser, requireAuth } = require('../middleware/auth');
 
 const TZ = 'Asia/Taipei';
 
@@ -189,7 +183,7 @@ async function buildPlan(projectNo, startDate, totalDays, projectStageCode = 'wa
 
 // ---------- route ----------
 // GET /api/projects/:id/stage-plan
-router.get('/projects/:id/stage-plan', attachUser, requireAuth, async (req, res) => {
+router.get('/:id/stage-plan', async (req, res) => {
   try {
     const dbIdRaw = req.params.id;           // URL 吃的是「DB 的 id」
     const dbIdNum = Number(dbIdRaw);

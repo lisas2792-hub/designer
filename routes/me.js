@@ -1,8 +1,11 @@
+// routes/me.js
+"use strict";
 const { Router } = require("express");
 const { pool } = require("../db");
 const router = Router();
 
-router.get("/me", async (req, res) => {
+// 這個 router 是掛在 /api/me 底下 → 這裡寫 "/" 就等於 /api/me
+router.get("/", async (req, res) => {
   try {
     const username = req.query.username;
     if (!username) return res.status(400).json({ ok:false, message:"missing username" });
@@ -23,7 +26,6 @@ router.get("/me", async (req, res) => {
       name: rows[0].name,
       role: rows[0].role_name
     }});
-
   } catch (e) {
     console.error("/api/me error", e);
     res.status(500).json({ ok:false, message:"server error" });

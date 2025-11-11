@@ -1,0 +1,215 @@
+:root{
+    --bg:#f6f7f9;--card:#ffffff;--text:#1f2937;--muted:#e0e7ff;--primary:#0B1746;--border:#3152be;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji"}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+
+/* ===== Sidebar 左側區塊 ===== */
+.sidebar{background:var(--primary);display:flex;flex-direction:column;color:#fff}
+.account{padding:20px 16px;border-bottom:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:space-between}
+.account .name{font-weight:700;font-size:30px}
+.account .role{color:rgba(255,255,255,.8);font-size:12px;margin-top:4px}
+.logout-btn{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.6);background:transparent;cursor:pointer;font-size:13px;color:#fff}
+
+.nav{padding:0;margin:0;list-style:none;flex:1;display:flex;flex-direction:column}
+.nav li{margin:0}
+.nav button{width:100%;font-size:15px;text-align:left;padding:14px;margin:0;border:none;border-bottom:1px solid rgba(255,255,255,.2);background:#fff;color:#1f2937;cursor:pointer;transition:.15s ease}
+.nav button:hover{background:#f3f4f6}
+.nav button.active{background:#e0e7ff;color:#1e3a8a;font-weight:600;font-size: 18px}
+
+/* ===== Main 右側區塊 ===== */
+.main{display:flex;flex-direction:column;}
+.topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+.topbar .title{font-weight:700;font-size: 25px;}
+.content{padding:24px;}
+
+/* 卡片共用樣式 */
+.card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:18px;box-shadow:0 6px 20px rgba(0,0,0,.04)}
+.grid{display:grid;gap:16px}
+
+/* ===== 專案進度內的變數 ===== */
+:root{
+    --side-stage: 70px;  /* 階段欄寬 */
+    --side-id: 100px;    /* 編號欄寬 */
+    --side-name: 200px;  /* 案名欄寬 */
+    --cols: 8;           /* 固定 8 個步驟 */
+    --action-col: 36px;  /* 每個圖示欄寬 */
+    --cell-min: 110px;   /* 每格最小寬度 */
+    --gap: 10px;
+
+    /* 顏色相關 */
+    --line: #e5e7eb;
+    --muted: #6b7280;
+    --ok-bg: #f3f4f6; --ok-bd: #d1d5db; --ok-fg: #111827;
+    --wait: #1d4ed8; --design: #059669; --build: #dc2626;
+    --warn-bg: #fff7ed; --warn-bd: #f59e0b; --warn-fg: #b45309;   /* 黃燈 */
+    --danger-bg: #fee2e2; --danger-bd: #ef4444; --danger-fg: #991b1b; /* 紅燈 */
+    --done-bg: #ecfdf5; --done-bd: #10b981; --done-fg: #065f46;   /* 綠燈 */
+    --shadow: 0 6px 20px rgba(0,0,0,.08); --radius: 12px;
+}
+
+/* === 頁簽獨立一列（不跟 legend 同列） === */
+.tabs-row{
+    display:flex; gap:8px; align-items:flex-end;
+    border-bottom:1px solid var(--line);
+    padding:6px 0 0; margin:0 0 10px;
+}
+.tabs-row .tab{
+    padding:1px 15px; border:none; background:#ffffff; cursor:pointer;
+    font-weight:700; color:#000000; font-size:18px; border-radius:10px 10px 0 0;
+}
+.tabs-row .tab[aria-selected="true"]{
+    color:var(--primary);
+    color:#ffffff; 
+    background:#000000;
+    border:1px solid var(--line);
+    border-bottom-color:#000000; /* 與內容相連的經典 Tab 外觀 */
+}
+.tabs-row .tab:focus{ outline:2px solid #c7d2fe; outline-offset:2px; }
+
+
+/* ===== 表頭（包含 3 + 8 + 3 欄） ===== */
+.grid-header{
+    display:grid;
+    grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col)); /* 新增 3 欄 */
+    column-gap: var(--gap);
+    align-items:center;
+    font-size:13px; color:var(--muted);
+    padding: 8px 12px; border-bottom:1px solid var(--line);
+}
+.grid-header div{ text-align:center; }
+.grid-header div:nth-child(1),
+.grid-header div:nth-child(2),
+.grid-header div:nth-child(3){ text-align:left; }
+/* 最後 3 格留白不畫底色/邊框 */
+.grid-header .action-head{ background:transparent; border:none; }
+
+
+/* ===== 每一列（包含 階段 + 8 + 3 欄） ===== */
+.project-row{
+    display:grid;
+    grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col)); /* 新增 3 欄 */
+    column-gap: var(--gap);
+    align-items:center;
+    padding: 10px 12px; border-bottom:1px dashed var(--line);
+}
+
+.cell-id{ font-weight:600; }
+.cell-name{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cell-stage select{
+    width: 100%; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:14px;
+}
+
+/* 已完成頁簽用：在「階段」欄顯示的固定內容 */
+.cell-stage .badge-done{
+    display:flex; 
+    align-items:center; 
+    justify-content:center;
+    height:35px;             
+    border-radius: var(--radius);
+    border:1px dashed var(--done-bd);
+    background: var(--done-bg);
+    color: var(--done-fg);
+    font-weight:700;
+    font-size:14px;
+}
+
+
+/* ===== 任務格子（紅 / 黃 / 綠 燈樣式齊全） ===== */
+.task-cell{
+    height: 44px; border-radius: var(--radius);
+    border:1px dashed var(--ok-bd); background: var(--ok-bg); color: var(--ok-fg);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:600;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.task-cell:hover{ transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+.task-cell[data-state="warn"]{ background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-fg); }   /* 黃燈 */
+.task-cell[data-state="danger"]{ background: var(--danger-bg); border-color: var(--danger-bd); color: var(--danger-fg); } /* 紅燈 */
+.task-cell[data-state="done"]{ background: var(--done-bg); border-color: var(--done-bd); color: var(--done-fg); }   /* 綠燈 */
+
+/* ===== 列顏色 by stage ===== */
+.status-waiting .cell-id, .status-waiting .cell-name{ color: var(--wait); }
+.status-design  .cell-id, .status-design  .cell-name{ color: var(--design); }
+.status-build   .cell-id, .status-build   .cell-name{ color: var(--build); }
+.is-done        .cell-id, .is-done        .cell-name{ color: #000 !important;}
+
+/* ===== 工具列 & 圖例（紅黃綠燈） ===== */
+.card-topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:10px; }
+.legend{ display:flex; gap:16px; align-items:center; font-size:13px; color:var(--muted); }
+.function-buttons{ display:flex; gap:10px; margin-left:auto; }
+.pill{ display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; }
+.dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+.dot.ok{ background:#9ca3af; }       /* 一般 */
+.dot.warn{ background:#f59e0b; }     /* 黃燈 */
+.dot.danger{ background:#ef4444; }   /* 紅燈 */
+.dot.done{ background:#10b981; }     /* 綠燈 */
+
+@media (max-width: 640px){
+    .card-topbar{ flex-wrap:wrap; }
+    .function-buttons{ margin-left:0; }
+}
+
+/* Emoji 動作按鈕樣式 */
+.action-btn{
+    display:flex;align-items:center;justify-content:center;
+    height:32px;width:32px;border-radius:8px;
+    border:1px solid var(--ok-bd, #d1d5db);
+    background:#fff;cursor:pointer;
+    transition: transform .05s ease, box-shadow .2s ease, background .2s ease;
+    font-size:18px; line-height:1; padding:0; /* 讓 emoji 置中 */
+}
+.action-btn:hover{ box-shadow:0 2px 6px rgba(0,0,0,.08) }
+.action-btn:active{ transform: translateY(1px) }
+.action-btn[disabled]{ opacity:.5; pointer-events:none }
+
+
+/* Modal 樣式 */
+.modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.45);
+    display:none;align-items:center;justify-content:center;z-index:1000;
+}
+.modal{
+    background:#fff;width:560px;max-width:95vw;border-radius:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,.18);padding:18px 18px 16px;
+    animation:modalIn .15s ease-out;
+}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.modal-title{font-weight:700;font-size:18px;margin:0}
+.modal-close{border:none;background:transparent;font-size:24px;cursor:pointer;line-height:1}
+.modal-body{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-actions{grid-column:1 / -1;display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+@keyframes modalIn{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal input,.modal select{
+    width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px
+}
+#f_due_preview{grid-column:1 / -1;font-size:13px;color:#6b7280;margin-top:4px}
+
+/* 頁簽都有階段 編號 案名 */
+.grid-header,
+.grid-header.mode-default,
+.grid-header.mode-done{
+    display:grid;
+    grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col));
+}
+
+.project-row,
+.project-row.mode-default,
+.project-row.mode-done{
+    display:grid;
+    grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col));
+}

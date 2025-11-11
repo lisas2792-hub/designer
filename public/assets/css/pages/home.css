@@ -1,0 +1,141 @@
+/* ====== 功能按鈕區 ====== */
+.function-buttons{
+  display:flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+#unsavedNotice{
+  display:none;           /* 預設隱藏，JS 控制顯示 */
+  color:#b45309;
+  font-weight:600;
+  margin-bottom:4px;
+}
+
+#unsavedNotice.is-visible {
+  display: block;              /* 加上 class 時顯示 */
+}
+
+#addProjectBtn{
+  padding:6px 12px;
+  border:1px solid var(--primary);
+  background:#fff;
+  color:var(--primary);
+  border-radius:8px;
+  cursor:pointer;
+}
+
+#saveBtn{
+  padding:6px 12px;
+  border:1px solid var(--primary);
+  background:var(--primary);
+  color:#fff;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* ====== 修改密碼區 ====== */
+#view-password .card{ max-width:520px; }
+
+/* 標題/說明（原本在 h2, p 的 inline） */
+#view-password h2{ margin:0 0 8px; }
+#view-password p{ margin:0 16px 16px 0; color:#6b7280; }
+
+/* 表單容器 grid */
+#pwdForm > div{
+  display:grid;
+  gap:12px;
+}
+
+/* label 上的小標題 */
+#pwdForm label > div{
+  font-size:14px;
+  margin-bottom:4px;
+}
+
+/* 密碼欄外觀（沿用 app.css 的風格） */
+#pwdForm input[type="password"]{
+  width:100%;
+  padding:10px;
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  font-size:16px;
+}
+
+/* 儲存按鈕 */
+#savePwd{
+  margin-top:6px;
+  padding:10px 14px;
+  border:1px solid var(--primary);
+  background:var(--primary);
+  color:#fff;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+/* 提示訊息 */
+#pwdMsg{
+  font-size:14px;
+  color:#6b7280;
+}
+
+/* ====== Modal 送出按鈕 ====== */
+#f_submit{
+  background:var(--primary);
+  color:#fff;
+  border:1px solid var(--primary);
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* ====== 上傳 Modal ====== */
+/* 外層（原本在 inline，但你現在 #uploadModal 沒樣式 → 這裡補上） */
+#uploadModal{
+  display:none;               /* 預設隱藏，JS 控制顯示 */
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.35);
+  align-items:center;
+  justify-content:center;
+  z-index:2000;
+}
+
+/* 內層卡片 */
+#uploadModal > div{
+  background:#fff;
+  padding:16px;
+  width:360px;
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.2);
+}
+
+/* 標題 */
+#uploadModal h3{ margin-top:0; }
+
+/* 提示與按鈕列 */
+#uploadHint{
+  font-size:14px;
+  color:#666;
+  margin:6px 0 12px;
+}
+#uploadModal .btn-row,
+#uploadModal > div > div {  /* 直接選現有那個包兩顆按鈕的 div */
+  display:flex;
+  gap:8px;
+}
+#chooseFileBtn,
+#cancelUploadBtn{
+  padding:8px 12px;
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  background:#fff;
+  cursor:pointer;
+}
+
+/* 狀態列 */
+#uploadStatus{
+  margin-top:12px;
+  font-size:13px;
+  color:#333;
+}

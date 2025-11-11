@@ -1,15 +1,55 @@
 # ================= 基本 =================
 node_modules/
+# 常見環境檔（別進版控）
+.env
+.env.*
 *.env
+
+# 若你把祕密集中到 /secrets（已忽略）
 /secrets/
+
+# ================= 祕密與金鑰（務必保護） =================
+# Google OAuth / Service Account / 各式金鑰與憑證
+# 不加開頭的「/」表示所有子資料夾也都忽略，較保險
+oauth-token.json
+oauth*.json
+*refresh_token*
+*service-account*.json
+*.p12
+*.pem
+*.key
+*.crt
+*.pfx
+*.keystore
+*.jks
+
+# 其他常見敏感檔
+*.secret
+*.secrets
+*.credentials
+*.cert
+*.enc
+*.bak
+*.backup
 
 # ================= logs（整個忽略，但保留佔位） =================
 /logs/*
 !/logs/.gitkeep
 
-# ================= .designer（只保留兩個檔） =================
-# 先忽略整個資料夾內容
-/.designer/*
-# 再放行要保留的檔案
-!/.designer/.gitignore
-!/.designer/designergithub
+# ================= 上傳/暫存（依你的專案實際路徑調整） =================
+/uploads/
+/temp/
+/tmp/
+*.tmp
+
+# ================= 編譯/輸出 =================
+/dist/
+/build/
+/coverage/
+/.sass-cache/
+
+# ================= 編輯器/OS 垃圾檔 =================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

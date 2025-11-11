@@ -4,7 +4,7 @@
 //第一次建立的人(系統管理者)
 const express = require("express");
 const bcrypt = require("bcrypt");
-const { Pool } = require("pg");
+// const { Pool } = require("pg");
 
 // 如果你已有 db.js 的 Pool，改成： const { pool } = require("../db");
 const { pool } = require("../db")
