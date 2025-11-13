@@ -1,69 +1,70 @@
-// login.js：從 login.html 的 <script> 原封不動搬過來（只有移出來，內容不改）
+// 認證頁（登入）：使用統一的 api.js（可直接上線）
+// - 使用 api.auth.login() 呼叫後端
+// - 若後端回 token → 用 setToken() 儲存（供後續 Bearer）
+// - 不硬寫 localhost；API_BASE 由 api.js 自動處理 (http/https/file://)
 
-// 根據當前協定決定 API 位置（保留原邏輯）
-const API = location.protocol === "file:" 
-    ? "http://127.0.0.1:3000/api/auth/login" 
-    : "/api/auth/login";
+import { api, setToken, toUserMessage } from "/assets/js/api.js";
 
 const msg = document.getElementById("msg");
 const btn = document.getElementById("btn");
 
-// 如果是用 file:// 開，修正跳轉連結（保留原註解）
+// file:// 開啟時，修正註冊超連結（保留你的行為）
 if (location.protocol === "file:") {
-    document.getElementById("toRegister").href = "register.html";
+  const reg = document.getElementById("toRegister");
+  if (reg) reg.href = "register.html";
 }
 
-btn.addEventListener("click", async () => {
-    msg.textContent = ""; 
-    msg.className = "msg";
-
-    const body = {
-    username: document.getElementById("username").value.trim(),
-    password: document.getElementById("password").value
-    };
-    if (!body.username || !body.password) {
-    msg.textContent = "請輸入帳號與密碼"; 
-    msg.classList.add("error");
-    return;
-    }
-
-    try {
-    const res = await fetch(API, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        credentials: "include",               // ⬅️ 確保瀏覽器接受 Set-Cookie
-        body: JSON.stringify(body)
-    });
-
-    // 後端固定回 JSON
-    const data = await res.json().catch(() => ({}));
-
-    if (res.ok && data.ok) {
-        // ⬅️ 若回傳 token，備用存起來（同站用不到，但之後 file:// 可拿來當 Bearer）
-        if (data.token) {
-        try { localStorage.setItem("jwt", data.token); } catch (_) {}
-        }
-
-        // ⬅️ 從後端回傳的 user 取 username；fallback 用表單輸入
-        const uname = data?.user?.username ?? body.username;
-
-        // ⬅️ 絕對路徑導到同站的 home（避免路徑/來源不一致）
-        window.location.href = `/home.html?username=${encodeURIComponent(uname)}`;
-    } else {
-        msg.textContent = data?.msg || `登入失敗（HTTP ${res.status}）`;
-        msg.classList.add("error");
-    }
-
-    } catch (e) {
-    console.error(e);
-    msg.textContent = "無法連到伺服器 (server.js)"; 
-    msg.classList.add("error");
-    }
-});
-
-// 為了直接按 Enter 即可模擬點擊登入按鈕（保留原註解）
+btn.addEventListener("click", onLogin);
 document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-    btn.click();
-    }
+  if (e.key === "Enter") btn.click();
 });
+
+async function onLogin() {
+  resetMsg();
+
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!username || !password) {
+    showError("請輸入帳號與密碼");
+    return;
+  }
+
+  try {
+    // 呼叫後端登入；需對應你的後端回傳格式
+    // 常見回傳：{ ok: true, token, user: { username, name, role } }
+    const data = await api.auth.login({ username, password });
+
+    // 若後端同時設置 httpOnly Cookie，這裡也不衝突；token 僅作為前端 Bearer 備援
+    if (data?.token) {
+      setToken(data.token);
+    } else {
+      // 沒有 token 也可能僅靠 Cookie 驗證；此情況下可略過 setToken()
+      // 若你後端只用 Cookie，這裡不需做額外處理
+    }
+
+    // 取得顯示用名稱：user.username → user.name → 表單輸入
+    const uname =
+      data?.user?.username ??
+      data?.user?.name ??
+      username;
+
+    // 絕對路徑導回首頁（避免子路徑問題）
+    // window.location.href = `/home.html?username=${encodeURIComponent(uname)}`;
+    window.location.href = `/home.html`;
+  } catch (err) {
+    // 使用統一錯誤訊息轉換（401/403/逾時/網路）
+    showError(toUserMessage(err, "登入失敗，請稍後再試"));
+  }
+}
+
+/* ---------------- 小工具：訊息區域 ---------------- */
+function resetMsg() {
+  msg.textContent = "";
+  msg.className = "msg";
+}
+
+function showError(text) {
+  msg.textContent = text;
+  msg.classList.add("error");
+}

@@ -30,10 +30,9 @@
     <a href="/login.html" id="toLogin">已有帳號？前往登入</a>
   </div>
 
-  <script>
-    // 依執行環境決定 API base：http 走同網域，file 走本機 3000
-    const API_BASE = location.protocol.startsWith("http") ? "" : "http://127.0.0.1:3000";
-    const API = API_BASE + "/api/auth/register";
+  <script type="module">
+
+    import { api, toUserMessage } from "/assets/js/api.js";
 
     const form = document.getElementById("form");
     const btn  = document.getElementById("btn");
@@ -64,30 +63,22 @@
       btn.textContent = "送出中…";
 
       try {
-        const res = await fetch(API, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(body)
-        });
+        // 改為呼叫共用 api：api.auth.register()
+        const data = await api.auth.register(body);
 
-        let data = {};
-        try { data = await res.json(); } catch (_) {}
+        // 後端可回 { ok:true, msg:"..." } 或其他格式；這裡保留相容顯示
+        msg.textContent = data?.msg || "註冊成功，1.5 秒後跳到登入頁…";
+        msg.classList.add("success");
 
-        if (res.ok && data.ok) {
-          msg.textContent = data.msg || "註冊成功，3 秒後跳到登入頁…";
-          msg.classList.add("success");
-          setTimeout(() => {
-            if (location.protocol.startsWith("http")) location.href = "/login.html";
-            else location.href = "login.html";
-          }, 3000);
-        } else {
-          msg.textContent = (data && data.msg) ? data.msg : `發生錯誤（HTTP ${res.status}）`;
-          msg.classList.add("error");
-        }
-      } catch (e) {
-        msg.textContent = "無法連到伺服器，請確認以 http 開啟或 server 正在執行";
+        setTimeout(() => {
+          if (location.protocol.startsWith("http")) location.href = "/login.html";
+          else location.href = "login.html";
+        }, 1500);
+      } catch (err) {
+        // ★ 修改：統一錯誤訊息（401／驗證錯／逾時／網路等）
+        msg.textContent = toUserMessage(err, "註冊失敗，請稍後再試");
         msg.classList.add("error");
-        console.error(e);
+        console.error(err);
       } finally {
         btn.disabled = false;
         btn.textContent = original;

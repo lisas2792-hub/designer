@@ -189,5 +189,48 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script type="module" src="/assets/js/pages/home.js?v=20251106"></script>
 
+  <script type="module">
+    import { api, toUserMessage } from "/assets/js/api.js";
+
+    (async () => {
+      // -------------------------------
+      // ① 取得目前登入者（使用 Cookie）
+      // -------------------------------
+      let me = null;
+      try {
+        me = await api.auth.me();   // ←🔥 就是放這裡！
+      } catch (err) {
+        alert(toUserMessage(err, "無法取得登入狀態"));
+      }
+
+      if (!me) {
+        // 未登入 → 退回 login 頁
+        location.href = "/login.html";
+        return;
+      }
+
+      // 在畫面上顯示登入者名稱 + 角色
+      document.getElementById("accountName").textContent = me.username;
+      document.getElementById("accountRole").textContent = me.role === "admin" ? "系統管理員" : "一般使用者";
+
+      // -------------------------------
+      // ② 你的其它頁面初始化程式碼
+      // -------------------------------
+      const params = new URLSearchParams(location.search);
+      const projectId = params.get("projectId");
+
+      if (projectId) {
+        try {
+          const plan = await api.stagePlan.get(projectId);
+          console.log("Stage Plan: ", plan);
+        } catch (err) {
+          alert(toUserMessage(err));
+        }
+      }
+    })();
+  </script>
+
+
+
 </body>
 </html>
