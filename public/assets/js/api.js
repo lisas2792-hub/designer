@@ -1,14 +1,16 @@
 // ======================================================
-//  共用 API 工具：用來與後端溝通（GET / POST）
+//  共用 API 工具：用來與後端溝通（GET / POST / PATCH / DELETE）
 //  - 自動帶上 Bearer Token
 //  - 自動組合 API_BASE
-//  - 可直接上線使用
+//  - home.js / password.js 呼叫這，不寫 URL 字串
 // ======================================================
 
 /* ========================= 基本設定 ========================= */
 
 // 僅在「本地用 file:// 打開 HTML」時，才回落到 127.0.0.1
-const API_BASE = location.protocol.startsWith("http") ? "" : "http://127.0.0.1:3000";
+const API_BASE = location.protocol.startsWith("http")
+  ? ""
+  : "http://127.0.0.1:3000";
 
 // 逾時秒數（可依需求調整）
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -47,7 +49,17 @@ function buildHeaders(extra = {}, { isMultipart = false } = {}) {
   return h;
 }
 
-async function apiFetch(path, { method = "GET", body, headers = {}, timeout = DEFAULT_TIMEOUT_MS, isMultipart = false } = {}) {
+// ★ 核心：統一的 fetch 包裝
+async function apiFetch(
+  path,
+  {
+    method = "GET",
+    body,
+    headers = {},
+    timeout = DEFAULT_TIMEOUT_MS,
+    isMultipart = false,
+  } = {}
+) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -105,21 +117,21 @@ async function apiFetch(path, { method = "GET", body, headers = {}, timeout = DE
 export const api = {
   /* ---------- 認證相關 ---------- */
   auth: {
-    // 依你的後端而定：例如 POST /api/auth/login 取得 token
+    // login：POST /api/auth/login → { ok, token, data:user? } 依你後端
     async login({ username, password }) {
       const data = await apiFetch("/api/auth/login", {
         method: "POST",
         body: { username, password },
       });
-      // 假設後端回 { token, user }
       if (data?.token) setToken(data.token);
       return data;
     },
 
-    // 統一回傳「目前登入者物件」或 null
+    // me：你已確認後端是 { ok:true, data:{...} }
     async me() {
       const res = await apiFetch("/api/auth/me", { method: "GET" });
-      return res?.data ?? null;
+      if (!res || res.ok === false) return null;
+      return res.data ?? null;
     },
 
     async logout() {
@@ -139,65 +151,174 @@ export const api = {
         body: { username, password, name },
       });
     },
+
+    async changePassword(payload) {
+      // payload = { current_password, new_password, confirm_password }
+      const data = await apiFetch("/api/auth/change-password", {
+        method: "POST",
+        body: payload,
+      });
+
+      // 如果後端回傳新的 token，就順便更新
+      if (data?.token) setToken(data.token);
+
+      return data;
+    },
   },
 
-  /* ---------- 專案/清單 ---------- */
+  /* ---------- 專案 ---------- */
   projects: {
+    // ★ 你目前 home.js 的 list 是直接 GET /api/projects
     async list({ keyword = "", page = 1, pageSize = 20 } = {}) {
-      const qs = new URLSearchParams({ keyword, page: String(page), pageSize: String(pageSize) });
-      return await apiFetch(`/api/projects?${qs.toString()}`, { method: "GET" });
+      // 若你的 /api/projects 支援 query，就用這個；不支援就簡化成直接 /api/projects
+      if (keyword || page !== 1 || pageSize !== 20) {
+        const qs = new URLSearchParams({
+          keyword,
+          page: String(page),
+          pageSize: String(pageSize),
+        });
+        return await apiFetch(`/api/projects?${qs.toString()}`, {
+          method: "GET",
+        });
+      }
+      return await apiFetch("/api/projects", { method: "GET" });
+    },
+
+    // ★ 給 home.js saveProject 用
+    async create(body) {
+      return await apiFetch("/api/projects", {
+        method: "POST",
+        body,
+      });
+    },
+
+    async update(id, patch) {
+      return await apiFetch(`/api/projects/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: patch,
+      });
+    },
+
+    async remove(id) {
+      return await apiFetch(`/api/projects/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
     },
 
     async get(projectId) {
-      return await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: "GET" });
+      return await apiFetch(
+        `/api/projects/${encodeURIComponent(projectId)}`,
+        { method: "GET" }
+      );
     },
   },
 
   /* ---------- 階段規劃（stageplan）---------- */
   stagePlan: {
-    // 取某專案的階段規劃
+    // 取某專案的階段規劃（你 home.js 已經在用這個）
     async get(projectId) {
-      return await apiFetch(`/api/stageplan/${encodeURIComponent(projectId)}/stage-plan`, { method: "GET" });
+      return await apiFetch(
+        `/api/stageplan/${encodeURIComponent(projectId)}/stage-plan`,
+        { method: "GET" }
+      );
     },
 
     // 儲存/更新某專案的階段規劃
     async save(projectId, payload) {
       // 後端可用 PUT /api/stageplan/:id/stage-plan
-      return await apiFetch(`/api/stageplan/${encodeURIComponent(projectId)}/stage-plan`, {
-        method: "PUT",
-        body: payload, // 物件自動轉 JSON
-      });
+      return await apiFetch(
+        `/api/stageplan/${encodeURIComponent(projectId)}/stage-plan`,
+        {
+          method: "PUT",
+          body: payload, // 物件自動轉 JSON
+        }
+      );
     },
 
     // 例如：切換單一階段狀態（如「完成/未完成/日期」）
     async updateStage(projectId, stageId, payload) {
-      return await apiFetch(`/api/stageplan/${encodeURIComponent(projectId)}/stage/${encodeURIComponent(stageId)}`, {
-        method: "PATCH",
-        body: payload,
+      return await apiFetch(
+        `/api/stageplan/${encodeURIComponent(
+          projectId
+        )}/stage/${encodeURIComponent(stageId)}`,
+        {
+          method: "PATCH",
+          body: payload,
+        }
+      );
+    },
+  },
+
+  /* ---------- 負責人選單 ---------- */
+  // 對應 home.js 的 /api/responsible-user/options
+  responsibleUsers: {
+    async options() {
+      return await apiFetch("/api/responsible-user/options", {
+        method: "GET",
       });
     },
   },
 
-  /* ---------- 上傳（stageupload）---------- */
-  stageUpload: {
-    // 查詢最後一次上傳紀錄
-    async getLast(projectId) {
-      return await apiFetch(`/api/stageupload/${encodeURIComponent(projectId)}/last`, { method: "GET" });
+  /* ---------- 上傳（以 project + stage 為維度）---------- */
+  // ★ 這組是「跟你現在 home.js 寫死的 URL 對齊」：
+  //   GET  /api/projects/:projectNo/stages/:stageNo/last
+  //   POST /api/projects/:projectNo/stages/:stageNo/upload
+  projectStages: {
+    async getLastFile(projectNo, stageNo) {
+      return await apiFetch(
+        `/api/projects/${encodeURIComponent(
+          projectNo
+        )}/stages/${encodeURIComponent(stageNo)}/last`,
+        { method: "GET" }
+      );
     },
 
-    // 上傳檔案：file 必須是 File/Blob；可帶 stageId 讓後端辨識八階段
+    // files: FileList 或 Array<File>
+    async uploadFiles(projectNo, stageNo, files) {
+      const fd = new FormData();
+      // 你的後端目前是用 `files` 陣列接收
+      for (const f of files) {
+        fd.append("files", f);
+      }
+
+      return await apiFetch(
+        `/api/projects/${encodeURIComponent(
+          projectNo
+        )}/stages/${encodeURIComponent(stageNo)}/upload`,
+        {
+          method: "POST",
+          body: fd,
+          isMultipart: true,
+        }
+      );
+    },
+  },
+
+  /* ---------- 舊版 stageupload（如果後端還保留，可當兼容用）---------- */
+  // ⚠️ 目前你的 home.js 沒在用這組，如果後端已經改成 /api/projects/:id/stages/:no，
+  //    這一段可以之後砍掉，或保留給其他舊頁面用。
+  stageUpload: {
+    async getLast(projectId) {
+      return await apiFetch(
+        `/api/stageupload/${encodeURIComponent(projectId)}/last`,
+        { method: "GET" }
+      );
+    },
+
     async upload({ projectId, stageId, file, extra = {} }) {
       const form = new FormData();
       form.append("file", file);
       if (stageId != null) form.append("stageId", String(stageId));
-      // 其餘欄位（如備註、檔名、是否覆蓋…）
       Object.entries(extra).forEach(([k, v]) => form.append(k, String(v)));
 
-      return await apiFetch(`/api/stageupload/${encodeURIComponent(projectId)}/upload`, {
-        method: "POST",
-        body: form,
-        isMultipart: true,
-      });
+      return await apiFetch(
+        `/api/stageupload/${encodeURIComponent(projectId)}/upload`,
+        {
+          method: "POST",
+          body: form,
+          isMultipart: true,
+        }
+      );
     },
   },
 
@@ -210,14 +331,21 @@ export const api = {
 /* ========================= 方便的錯誤處理輔助 ========================= */
 
 // 將錯誤轉成可顯示訊息（可在 UI 層統一使用）
-export function toUserMessage(err, fallback = "發生未知錯誤，請稍後再試") {
+export function toUserMessage(
+  err,
+  fallback = "發生未知錯誤，請稍後再試"
+) {
   if (!err) return fallback;
   if (err.status === 401) return "尚未登入或登入已過期，請重新登入。";
   if (err.status === 403) return "您沒有權限執行此操作。";
-  if (err.code === "NETWORK_ERROR") return "網路或伺服器連線異常，請確認網路後再試。";
+  if (err.code === "NETWORK_ERROR")
+    return "網路或伺服器連線異常，請確認網路後再試。";
   // 後端若有帶更明確的 message
   if (err?.details?.message) return String(err.details.message);
-  if (err?.details?.msg)     return String(err.details.msg);
+  if (err?.details?.msg) return String(err.details.msg);
   if (err.message) return String(err.message);
   return fallback;
 }
+
+// 若有需要，其他檔案也可以直接用 apiFetch
+export { apiFetch };
