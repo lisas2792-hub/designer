@@ -139,3 +139,22 @@
   font-size:13px;
   color:#333;
 }
+
+/* Logo 調整 */
+.sidebar .logo-box {
+  width: 100%;
+  padding: 10px 15px;
+  margin-bottom: 0px;
+  text-align: center;
+}
+
+.sidebar .account {
+  margin-top: 0 !important;
+  padding-top: 0px !important;
+}
+
+.sidebar .logo-box img {
+  width: 100%;
+  max-width: 300px;    /* 調整大小 */
+  filter: invert(1);   /* 直接反轉顏色 */
+}

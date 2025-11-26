@@ -4,40 +4,47 @@
 /**
  * 上線前可刪的說明：
  * - 帶 [VALIDATION] 註解的 console.log / 除錯端點，都是為了快速定位問題
- * - 你可以把 DEV_DEBUG=false（或直接移除這些段落），不影響核心功能
+ * - 可以把 DEV_DEBUG=false（或直接移除這些段落），不影響核心功能
+ */
+
+/**
+ * 上傳功能（Cloud Run 版本）
+ * - ✅ 使用 Multer memoryStorage：不寫磁碟，直接以 buffer 上傳到 Google Drive
+ * - ✅ OAuth token 儲存在 /tmp（可寫目錄），支援 OAUTH_TOKEN_PATH 覆寫
+ * - ✅ 支援共用雲端硬碟（supportsAllDrives: true）
+ * - ✅ 只允許常見圖片與 PDF（可用環境變數調整）
+ * - ❗ 需先完成 OAuth 授權（/api/drive/oauth2/start → /api/drive/oauth2/callback）
  */
 
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const dayjs = require("dayjs");
 const multer = require("multer");
-const mime = require("mime-types");
 const { google } = require("googleapis");
+const { Readable } = require("stream");
 
 const { pool } = require("../db");
 const { attachUser, requireAuth } = require("../middleware/auth");
-
-// ★ 抽離 SQL：repositories
-const {
-  upsertProjectTextUpload,
-  getLastUpload,
-} = require("../repositories/stageUploadRepo");
+const { upsertProjectTextUpload, getLastUpload } = require("../repositories/stageUploadRepo");
 
 /* ================== 環境變數與參數 ================== */
 const DEV_DEBUG = (process.env.DEV_DEBUG || "false").toLowerCase() === "true";
 
-const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_ROOT || "public/uploads");
-const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 50);
+// Cloud Run 唯一可寫為 /tmp；這裡預設建立 /tmp/uploads 以防未來擴充（目前實作不落地）
+const UPLOAD_ROOT = process.env.UPLOAD_ROOT
+  ? path.resolve(process.env.UPLOAD_ROOT)
+  : "/tmp/uploads";
+
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20); // 建議 < 32（Cloud Run 單請求上限）
 const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
-  "image/jpeg,image/png,image/webp,image/gif,application/pdf")
+  "image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,application/pdf")
   .split(",")
   .map((s) => s.trim().toLowerCase());
 
 const CLOUD_TARGET = (process.env.CLOUD_TARGET || "DRIVE").toUpperCase();
 const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
 
-/* ================== stages.json 讀取（支援 UTF-8/UTF-16；自動尋找路徑） ================== */
+/* ================== stages.json 讀取（支援 UTF-8/UTF-16） ================== */
 const pathExists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
 const PROJECT_ROOT = process.cwd();
 const THIS_DIR = __dirname;
@@ -67,8 +74,10 @@ let STAGE_MAP = {};
 function decodeJsonFileSmart(fp) {
   const buf = fs.readFileSync(fp);
   let text;
+  // UTF-16 LE
   if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
     text = buf.toString("utf16le");
+  // UTF-16 BE → 轉成 LE
   } else if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
     const swapped = Buffer.alloc(buf.length - 2);
     for (let i = 2; i < buf.length; i += 2) { swapped[i - 2] = buf[i + 1]; swapped[i - 1] = buf[i]; }
@@ -76,7 +85,7 @@ function decodeJsonFileSmart(fp) {
   } else {
     text = buf.toString("utf8");
   }
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // 去掉 BOM
   return JSON.parse(text);
 }
 
@@ -97,12 +106,7 @@ function buildStageMapFromArray(arr) {
   }
   return map;
 }
-
-function normalizeDigitKey(k) {
-  return String(k).replace(/[０-９]/g, (ch) =>
-    String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30)
-  );
-}
+const normalizeDigitKey = (k) => String(k).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
 
 function loadStages() {
   try {
@@ -133,17 +137,12 @@ function loadStages() {
 
     STAGE_MAP = map;
 
-    if (DEV_DEBUG) {
-      console.log("[stages] using file:", STAGES_JSON);
-      // console.log("[stages] keys:", Object.keys(STAGE_MAP));
-      // console.log("[stages] #1 =", STAGE_MAP[1] ?? STAGE_MAP["1"]);
-    }
+    if (DEV_DEBUG) console.log("[stages] using file:", STAGES_JSON);
   } catch (e) {
     console.warn(`[stages] 解析失敗：`, e?.message || e);
     STAGE_MAP = {};
   }
 }
-
 loadStages();
 
 function getStageName(stageNo) {
@@ -151,7 +150,7 @@ function getStageName(stageNo) {
   return STAGE_MAP[n] ?? STAGE_MAP[String(n)] ?? `stage_${n}`;
 }
 
-/* ================== 通用工具 ================== */
+/* ================== 共用小工具 ================== */
 function safeSegment(s) {
   return String(s || "")
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
@@ -160,16 +159,37 @@ function safeSegment(s) {
     .slice(0, 80);
 }
 
-fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+// 建立可寫目錄（即便現在不落地，保留以兼容未來需求）
+try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); } catch {}
+
+// 取得台北時間：YYYYMMDD-HHMMSS
+function taipeiTimestamp() {
+  const parts = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (t) => parts.find(p => p.type === t)?.value || "";
+  return `${get("year")}${get("month")}${get("day")}-${get("hour")}${get("minute")}${get("second")}`;
+}
 
 /* ================== Google Drive OAuth2（lazy 初始化） ================== */
 let drive = null;
 const SCOPES = [
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/drive.file", // 最小必要：上傳/管理自己建立的檔案
+  "https://www.googleapis.com/auth/drive"
 ];
+
+// 預設寫入 /tmp，支援以 OAUTH_TOKEN_PATH 覆寫（或兼容舊名 GOOGLE_OAUTH_TOKEN_PATH）
 const OAUTH_TOKEN_PATH =
-  process.env.GOOGLE_OAUTH_TOKEN_PATH || path.resolve("oauth-token.json");
+  process.env.OAUTH_TOKEN_PATH ||
+  process.env.GOOGLE_OAUTH_TOKEN_PATH ||
+  "/tmp/oauth-token.json";
 
 function createOAuthClient() {
   return new google.auth.OAuth2(
@@ -197,15 +217,14 @@ function ensureDriveReady() {
 
 /* ================== Drive 工具 ================== */
 const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
-function escQ(str = "") { return String(str).replace(/(['\\])/g, "\\$1"); }
+const escQ = (str = "") => String(str).replace(/(['\\])/g, "\\$1");
 
 async function driveFindFolder(drv, name, parentId) {
-  // FIX: 這裡以前反引號放錯，或沒觸發樣板字串 → 導致語法錯或查詢失敗
   const q = [
     `mimeType='${DRIVE_FOLDER_MIME}'`,
     `name='${escQ(name)}'`,
     "trashed=false",
-    parentId ? `'${escQ(parentId)}' in parents` : "" // ← 用單引號包住 id，整段用樣板字串組好
+    parentId ? `'${escQ(parentId)}' in parents` : ""
   ].filter(Boolean).join(" and ");
 
   const { data } = await drv.files.list({
@@ -254,35 +273,52 @@ async function ensureProjectStageFolder(drv, rootId, projectNo, projectName, sta
   return { projectFolderId, stageFolderId };
 }
 
-async function uploadToDrive(absPath, projectNo, stageNo, projectName, stageName) {
+// ★ 直傳：使用 buffer（不落地磁碟）
+async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, stageNo, projectName, stageName) {
   const drv = ensureDriveReady();
   if (!drv || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定或未授權" };
+
   try {
     const { stageFolderId } = await ensureProjectStageFolder(
       drv, GDRIVE_FOLDER_ID, projectNo, projectName, stageNo, stageName
     );
 
-    const fileName = path.basename(absPath);
+    // 命名：工程編號_階段編號_台北時間_原檔名尾巴（安全化）
+    const stamp = taipeiTimestamp();
+    const baseOriginal = path.basename(originalName || "file");
+    const fileName = `${projectNo}_${stageNo}_${stamp}_${safeSegment(baseOriginal)}`;
+
+    const media = {
+      mimeType: mimeType || "application/octet-stream",
+      body: Readable.from(buffer),
+    };
+
+    // 建檔
     const createRes = await drv.files.create({
-      resource: { name: `${projectNo}_${stageNo}_${fileName}`, parents: [stageFolderId] },
-      media: { mimeType: mime.lookup(absPath) || "application/octet-stream", body: fs.createReadStream(absPath) },
-      fields: "id,name,parents,driveId,webViewLink,webContentLink",
+      requestBody: { name: fileName, parents: [stageFolderId] },
+      media,
+      fields: "id,name,parents,webViewLink,webContentLink",
       supportsAllDrives: true,
     });
-
     const fileId = createRes.data.id;
 
+    // （可選）開啟公開讀取權限，供前端預覽
     try {
       await drv.permissions.create({
-        fileId, resource: { role: "reader", type: "anyone" }, supportsAllDrives: true,
+        fileId,
+        requestBody: { role: "reader", type: "anyone" },
+        supportsAllDrives: true,
       });
     } catch (_) {}
 
+    // 取最終連結/縮圖
     const info = await drv.files.get({
-      fileId, fields: "id,parents,driveId,webViewLink,webContentLink,thumbnailLink",
+      fileId,
+      fields: "id,webViewLink,webContentLink,thumbnailLink",
       supportsAllDrives: true,
     });
 
+    // 回傳給呼叫端使用（含最終檔名）
     return {
       ok: true,
       fileId,
@@ -290,6 +326,7 @@ async function uploadToDrive(absPath, projectNo, stageNo, projectName, stageName
       webViewLink: info.data.webViewLink || null,
       webContentLink: info.data.webContentLink || null,
       thumbnailLink: info.data.thumbnailLink || null,
+      driveFileName: createRes.data.name, // ← 雲端實際檔名
     };
   } catch (err) {
     const e = err?.errors?.[0] || err?.response?.data?.error || err;
@@ -299,7 +336,7 @@ async function uploadToDrive(absPath, projectNo, stageNo, projectName, stageName
   }
 }
 
-/* ================== 解析目標目錄（前置 middleware） ================== */
+/* ================== 前置 middleware：解析專案/階段資訊 ================== */
 async function resolveUploadTargetDir(req, _res, next) {
   try {
     const projectNo = String(req.params.projectNo || "");
@@ -310,8 +347,11 @@ async function resolveUploadTargetDir(req, _res, next) {
       console.log("[upload] UPLOAD_ROOT:", UPLOAD_ROOT);
     }
 
-    fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
-    fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK);
+    // 雖然不落地，仍建立 /tmp/uploads 結構，避免未來改動需要
+    try {
+      fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+      fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK);
+    } catch {}
 
     const { rows } = await pool.query(
       `SELECT name FROM project WHERE project_id = $1 LIMIT 1`,
@@ -323,19 +363,11 @@ async function resolveUploadTargetDir(req, _res, next) {
     const outerDir = `${projectNo}_${safeSegment(projectName)}`;
     const innerDir = `${stageNoInt}_${safeSegment(stageName)}`;
     const targetDir = path.join(UPLOAD_ROOT, outerDir, innerDir);
-    fs.mkdirSync(targetDir, { recursive: true });
+    try { fs.mkdirSync(targetDir, { recursive: true }); } catch {}
 
     req._targetDir = targetDir;
     req._projectName = projectName;
     req._stageName = stageName;
-
-    if (DEV_DEBUG) {
-      console.log("[upload] stage resolved ->", {
-        stageNoInt,
-        stageName,
-        sample1: STAGE_MAP[1] ?? STAGE_MAP["1"],
-      });
-    }
 
     next();
   } catch (err) {
@@ -344,22 +376,9 @@ async function resolveUploadTargetDir(req, _res, next) {
   }
 }
 
-/* ================== Multer（本地暫存） ================== */
-const storage = multer.diskStorage({
-  destination: (req, _file, cb) => {
-    const dir = req._targetDir || UPLOAD_ROOT;
-    if (DEV_DEBUG) console.log("[upload] multer.destination ->", dir);
-    cb(null, dir);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname || "");
-    const base = path.basename(file.originalname || "file", ext).replace(/[^\w.\-]/g, "_");
-    const ts = dayjs().format("YYYYMMDD_HHmmss_SSS");
-    cb(null, `${ts}_${base}${ext}`);
-  },
-});
+/* ================== Multer（memoryStorage，不落地） ================== */
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 10 },
   fileFilter: (_req, file, cb) => {
     const m = (file.mimetype || "").toLowerCase();
@@ -370,10 +389,10 @@ const upload = multer({
 const acceptAny = upload.any();
 
 /* ================== Router 初始化 ================== */
-const publicRouter = express.Router(); // 不需登入
-const router = express.Router();       // 需登入
+const publicRouter = express.Router(); // 不需登入（OAuth/檢查）
+const router = express.Router();       // 需登入（上傳/查詢）
 
-/* ============ 公開：OAuth 流程 ============ */
+/* ============ 公開：OAuth 流程（一次授權即可） ============ */
 publicRouter.get("/oauth2/start", (_req, res) => {
   const oauth2 = createOAuthClient();
   const url = oauth2.generateAuthUrl({
@@ -400,17 +419,7 @@ publicRouter.get("/oauth2/callback", async (req, res) => {
   }
 });
 
-// [VALIDATION] 一鍵重設 OAuth token（壞掉時用，上線可刪）
-publicRouter.post("/oauth2/reset", (_req, res) => {
-  try {
-    if (fs.existsSync(OAUTH_TOKEN_PATH)) fs.unlinkSync(OAUTH_TOKEN_PATH);
-    drive = null;
-    res.json({ ok: true, msg: "已刪除 token 檔，請重新走 /api/drive/oauth2/start 授權" });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
-});
-
+/* ============ 公開：Drive 狀態檢查（實用） ============ */
 // 驗證目前 OAuth 身分
 publicRouter.get("/__whoami", async (_req, res) => {
   try {
@@ -421,13 +430,13 @@ publicRouter.get("/__whoami", async (_req, res) => {
   } catch (e) {
     const msg = e?.response?.data?.error?.message || e.message || String(e);
     if (/invalid_grant/i.test(msg)) {
-      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請 POST /api/drive/oauth2/reset 後再走 /api/drive/oauth2/start" });
+      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請重新授權：/api/drive/oauth2/start" });
     }
     res.json({ ok: false, error: msg });
   }
 });
 
-// ✅ 檢查目標資料夾（成功時會印出你想要的 log）
+// 檢查目標資料夾是否可讀/為資料夾
 publicRouter.get("/__check-folder", async (_req, res) => {
   try {
     const drv = ensureDriveReady();
@@ -437,88 +446,18 @@ publicRouter.get("/__check-folder", async (_req, res) => {
       fields: "id,name,mimeType,driveId,permissions",
       supportsAllDrives: true,
     });
-
-    if (meta?.data?.mimeType === "application/vnd.google-apps.folder") {
-      console.log("[Drive] Root folder OK:", {
-        id: meta.data.id,
-        name: meta.data.name,
-        driveId: meta.data.driveId,
-      });
-    }
-
     res.json({ ok: true, meta: meta.data });
   } catch (e) {
     const msg = e?.response?.data?.error?.message || e.message || String(e);
     if (/invalid_grant/i.test(msg)) {
-      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請 POST /api/drive/oauth2/reset 後再走 /api/drive/oauth2/start" });
+      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請重新授權：/api/drive/oauth2/start" });
     }
     res.json({ ok: false, error: msg });
   }
 });
 
-/* ---------- [VALIDATION] 深度除錯：檢查 stages 檔案與內容片段 ---------- */
-publicRouter.get("/__stages_debug", (_req, res) => {
-  try {
-    const stat = pathExists(STAGES_JSON) ? fs.statSync(STAGES_JSON) : null;
-    const buf = pathExists(STAGES_JSON) ? fs.readFileSync(STAGES_JSON) : Buffer.alloc(0);
-    const headHex = buf.length ? Array.from(buf.slice(0, 64)).map(b => b.toString(16).padStart(2, "0")).join(" ") : "(no file)";
-    let previewDecoded = "";
-    try {
-      if (pathExists(STAGES_JSON)) {
-        const decoded = decodeJsonFileSmart(STAGES_JSON);
-        previewDecoded = JSON.stringify(decoded).slice(0, 200);
-      } else {
-        previewDecoded = "(no file)";
-      }
-    } catch (e) {
-      previewDecoded = `decode error: ${e?.message || e}`;
-    }
-    res.json({
-      using: STAGES_JSON,
-      size: stat?.size ?? 0,
-      mtime: stat?.mtime ?? null,
-      headHex,
-      previewDecoded,
-      currentMapKeys: Object.keys(STAGE_MAP),
-      sample: { "1": STAGE_MAP[1] ?? STAGE_MAP["1"] },
-    });
-  } catch (e) {
-    res.json({ error: e?.message || String(e), using: STAGES_JSON });
-  }
-});
-
-/* ---------- [VALIDATION] Stages 檢視/熱重載 ---------- */
-publicRouter.get("/__stages", (_req, res) => {
-  const existsList = (STAGES_JSON_INFO.candidates || []).map(fp => ({
-    path: fp, exists: pathExists(fp)
-  }));
-  res.json({
-    using: STAGES_JSON,
-    candidates: existsList,
-    keys: Object.keys(STAGE_MAP),
-    sample: { "1": STAGE_MAP[1] ?? STAGE_MAP["1"] },
-    map: STAGE_MAP,
-  });
-});
-
-publicRouter.post("/__reload-stages", (_req, res) => {
-  STAGES_JSON_INFO = findStagesJson();
-  STAGES_JSON = STAGES_JSON_INFO.file;
-  loadStages();
-  const existsList = (STAGES_JSON_INFO.candidates || []).map(fp => ({
-    path: fp, exists: pathExists(fp)
-  }));
-  res.json({
-    ok: true,
-    using: STAGES_JSON,
-    candidates: existsList,
-    keys: Object.keys(STAGE_MAP),
-    sample: { "1": STAGE_MAP[1] ?? STAGE_MAP["1"] },
-  });
-});
-/* ---------- [/VALIDATION] ---------- */
-
 /* ============ 受保護：上傳與查詢 ============ */
+// 上傳：/projects/:projectNo/stages/:stageNo/upload
 router.post(
   "/projects/:projectNo/stages/:stageNo/upload",
   attachUser,
@@ -541,13 +480,21 @@ router.post(
       const projectName = req._projectName;
       const stageName = req._stageName;
 
-      const savedLocal = [];
-      const savedCloud = [];
+      const savedFiles = [];
+      const cloudResults = [];
 
       await client.query("BEGIN");
 
       for (const f of req.files) {
-        const r = await uploadToDrive(f.path, projectNo, stageNo, projectName, stageName);
+        const r = await uploadBufferToDrive(
+          f.buffer,
+          f.originalname,
+          f.mimetype,
+          projectNo,
+          stageNo,
+          projectName,
+          stageName
+        );
         if (!r.ok) throw new Error(r.error || "Drive upload failed");
 
         const driveUrl = r.webViewLink || r.webContentLink;
@@ -562,15 +509,23 @@ router.post(
           thumbnail_link: thumbnailLink,
         });
 
-        savedLocal.push({ url: driveUrl, name: f.originalname, size: f.size, mime: f.mimetype });
-        savedCloud.push({ drive: { ok: true, url: driveUrl, fileId: driveFileId, thumbnailLink } });
+        const driveFileName = r.driveFileName; // 從 uploadBufferToDrive 回傳值取得
+        savedFiles.push({
+          url: driveUrl,
+          name: driveFileName,           // 統一用雲端最終檔名
+          originalName: f.originalname,  // 保留原始檔名供查核
+          size: f.size,
+          mime: f.mimetype,
+        });
+
+        cloudResults.push({ drive: { ok: true, url: driveUrl, fileId: driveFileId, thumbnailLink } });
       }
 
       await client.query("COMMIT");
       return res.json({
         ok: true,
-        files: savedLocal,
-        cloud: savedCloud,
+        files: savedFiles,
+        cloud: cloudResults,
         cloudTarget: CLOUD_TARGET,
       });
     } catch (err) {
@@ -586,18 +541,7 @@ router.post(
   }
 );
 
-// 目錄除錯（可刪）
-router.get(
-  "/projects/:projectNo/stages/:stageNo/__debug-target",
-  attachUser,
-  requireAuth,
-  resolveUploadTargetDir,
-  (req, res) => {
-    return res.json({ ok: true, uploadRoot: UPLOAD_ROOT, targetDir: req._targetDir });
-  }
-);
-
-// 查最後一次上傳的檔案
+// 查詢：最後一次上傳
 router.get(
   "/projects/:projectNo/stages/:stageNo/last",
   requireAuth,
@@ -619,18 +563,15 @@ router.get(
   }
 );
 
-/* ============================================================
-   ★★★ ADDED: 啟動即印 Drive 狀態（你想看的兩行）
-============================================================ */
+/* ================== 啟動時簡易檢查（可留作健康檢查） ================== */
 (async function bootLogDriveOnce() {
   try {
     const drv = ensureDriveReady();
     if (!drv) {
       console.log("[Drive] client not ready (no token or missing OAuth).");
-      console.log("        → 若剛安裝，請先走 /api/drive/oauth2/start 完成授權。");
+      console.log("        → 請先走 /api/drive/oauth2/start 完成授權。");
       return;
     }
-
     console.log("[Drive] OAuth token loaded, client ready.");
 
     if (GDRIVE_FOLDER_ID) {
@@ -641,11 +582,7 @@ router.get(
           supportsAllDrives: true,
         });
         if (meta?.data?.mimeType === "application/vnd.google-apps.folder") {
-          console.log("[Drive] Root folder OK:", {
-            id: meta.data.id,
-            name: meta.data.name,
-            driveId: meta.data.driveId,
-          });
+          console.log("[Drive] Root folder OK:", { id: meta.data.id, name: meta.data.name });
         } else {
           console.warn("[Drive] 指定的 GDRIVE_FOLDER_ID 不是資料夾或不可讀。");
         }

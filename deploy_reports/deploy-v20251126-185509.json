@@ -1,0 +1,12 @@
+﻿{
+    "project":  "project-designer-476408",
+    "region":  "asia-east1",
+    "service":  "designer-app",
+    "version":  "v20251126-185509",
+    "build_id":  "v20251126-185509",
+    "git_sha":  "5ebaaca",
+    "image_uri":  "asia-east1-docker.pkg.dev/project-designer-476408/designer-app/designer-app:v20251126-185509",
+    "revision":  "designer-app-v20251126-185509",
+    "url":  "https://designer-app-2n26aihlsq-de.a.run.app",
+    "time":  "2025-11-26T18:57:11"
+}

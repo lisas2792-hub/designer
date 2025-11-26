@@ -17,6 +17,9 @@
   <div class="app">
     <!-- 左側 Sidebar：帳號、登出、選單 -->
     <aside class="sidebar">
+      <div class="logo-box">
+        <img src="/assets/img/logo-invert.png" alt="logo" />
+      </div>
       <div class="account">
         <div>
           <div class="name" id="accountName">使用者名稱</div>
@@ -189,7 +192,7 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script type="module" src="/assets/js/pages/home.js?v=20251106"></script>
 
-  
+
   <!-- 已在home.js中import -->
 
   <!-- <script src="/assets/js/pages/password.js"></script> -->
@@ -235,6 +238,36 @@
       }
     })();
   </script> -->
+
+  <!-- 顯示版本 -->
+  <footer id="appVersion" 
+          style="font-size:12px;color:#999;text-align:center;padding:8px;opacity:0.7;">
+    version: 檢查中...
+  </footer>
+
+  <script type="module">
+  (async () => {
+    const el = document.getElementById("appVersion");
+
+    try {
+      const res = await fetch("/version");
+      if (!res.ok) throw new Error("fetch failed");
+
+      const v = await res.json();
+
+      // 只顯示 version
+      if (v.version) {
+        el.textContent = `version: ${v.version}`;
+      } else {
+        el.textContent = "version: unknown";
+      }
+
+    } catch (e) {
+      el.textContent = "version: unavailable";
+    }
+  })();
+  </script>
+
 
 
 
