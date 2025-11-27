@@ -2,18 +2,29 @@
 "use strict";
 
 /**
- * 上線前可刪的說明：
- * - 帶 [VALIDATION] 註解的 console.log / 除錯端點，都是為了快速定位問題
- * - 可以把 DEV_DEBUG=false（或直接移除這些段落），不影響核心功能
- */
-
-/**
- * 上傳功能（Cloud Run 版本）
- * - ✅ 使用 Multer memoryStorage：不寫磁碟，直接以 buffer 上傳到 Google Drive
- * - ✅ OAuth token 儲存在 /tmp（可寫目錄），支援 OAUTH_TOKEN_PATH 覆寫
- * - ✅ 支援共用雲端硬碟（supportsAllDrives: true）
- * - ✅ 只允許常見圖片與 PDF（可用環境變數調整）
- * - ❗ 需先完成 OAuth 授權（/api/drive/oauth2/start → /api/drive/oauth2/callback）
+ * ✅ 專業版：服務帳號 + Shared Drive
+ * - 不再使用使用者 OAuth，不會跳授權、不會掉 token
+ * - Cloud Run 以「服務帳號（執行身分）」呼叫 Google Drive API
+ * - 你只要把該服務帳號加入 Shared Drive（內容管理員）即可
+ *
+ * ▶ 必要環境變數（部署時加上）：
+ *   DRIVE_USE_SERVICE_ACCOUNT=true
+ *   DRIVE_SHARED_DRIVE_ID=<你的 Shared Drive ID>          # 用於查詢/列檔（選用，但建議設定）
+ *   GDRIVE_FOLDER_ID=<Shared Drive 裡真正要上傳的資料夾ID> # 直接沿用你的既有變數名（保持相容）
+ *   MAX_UPLOAD_MB=20（可調）
+ *
+ * ▶ DB 需求：
+ *   - 在 project_text_upload（或你實際表名）新增欄位 uploaded_by_name text
+ *   - 你的 upsertProjectTextUpload() 需把 uploaded_by_name 一併寫入
+ *     （我已在呼叫時傳入該屬性，請在 repo 增加欄位對應）
+ *
+ * ▶ 認證需求：
+ *   - 你既有的 attachUser / requireAuth 不變
+ *   - 這份程式會從 req.user.username 反查出 name，存到 uploaded_by_name
+ *
+ * ▶ 注意：
+ *   - 仍保留「專案/階段 → 自動建資料夾」與「命名規則」
+ *   - 保留原本回應結構（files / cloud / cloudTarget）
  */
 
 const express = require("express");
@@ -27,25 +38,27 @@ const { pool } = require("../db");
 const { attachUser, requireAuth } = require("../middleware/auth");
 const { upsertProjectTextUpload, getLastUpload } = require("../repositories/stageUploadRepo");
 
-/* ================== 環境變數與參數 ================== */
+/* ================== 環境變數 ================== */
 const DEV_DEBUG = (process.env.DEV_DEBUG || "false").toLowerCase() === "true";
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20);
 
-// Cloud Run 唯一可寫為 /tmp；這裡預設建立 /tmp/uploads 以防未來擴充（目前實作不落地）
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT
-  ? path.resolve(process.env.UPLOAD_ROOT)
-  : "/tmp/uploads";
+const DRIVE_USE_SERVICE_ACCOUNT = (process.env.DRIVE_USE_SERVICE_ACCOUNT || "false").toLowerCase() === "true";
+const DRIVE_SHARED_DRIVE_ID = process.env.DRIVE_SHARED_DRIVE_ID || ""; // 供查檔/列檔使用（建議設定）
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || "";           // 你原來的上傳目標資料夾 ID（位於 Shared Drive 內）
 
-const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20); // 建議 < 32（Cloud Run 單請求上限）
+const CLOUD_TARGET = (process.env.CLOUD_TARGET || "DRIVE").toUpperCase();
+
+/* ================== 上傳限制 ================== */
 const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
   "image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,application/pdf")
   .split(",")
   .map((s) => s.trim().toLowerCase());
 
-const CLOUD_TARGET = (process.env.CLOUD_TARGET || "DRIVE").toUpperCase();
-const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID;
-
-/* ================== stages.json 讀取（支援 UTF-8/UTF-16） ================== */
+/* ================== 目錄與 stages.json（保留原行為） ================== */
+const UPLOAD_ROOT = "/tmp/uploads"; // 仍建立目錄結構（即使不落地），保留相容性
 const pathExists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
+try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); } catch {}
+
 const PROJECT_ROOT = process.cwd();
 const THIS_DIR = __dirname;
 
@@ -74,10 +87,8 @@ let STAGE_MAP = {};
 function decodeJsonFileSmart(fp) {
   const buf = fs.readFileSync(fp);
   let text;
-  // UTF-16 LE
   if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
     text = buf.toString("utf16le");
-  // UTF-16 BE → 轉成 LE
   } else if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
     const swapped = Buffer.alloc(buf.length - 2);
     for (let i = 2; i < buf.length; i += 2) { swapped[i - 2] = buf[i + 1]; swapped[i - 1] = buf[i]; }
@@ -85,10 +96,9 @@ function decodeJsonFileSmart(fp) {
   } else {
     text = buf.toString("utf8");
   }
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // 去掉 BOM
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   return JSON.parse(text);
 }
-
 function buildStageMapFromArray(arr) {
   const map = {};
   for (const it of arr) {
@@ -107,7 +117,6 @@ function buildStageMapFromArray(arr) {
   return map;
 }
 const normalizeDigitKey = (k) => String(k).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
-
 function loadStages() {
   try {
     if (!pathExists(STAGES_JSON)) {
@@ -119,11 +128,9 @@ function loadStages() {
       STAGE_MAP = {};
       return;
     }
-
     const data = decodeJsonFileSmart(STAGES_JSON);
     const root = (data && (data.stages ?? data)) || {};
     let map = {};
-
     if (Array.isArray(root)) {
       map = buildStageMapFromArray(root);
     } else if (root && typeof root === "object") {
@@ -134,9 +141,7 @@ function loadStages() {
         if (Number.isFinite(id) && id > 0 && name) map[id] = name;
       }
     }
-
     STAGE_MAP = map;
-
     if (DEV_DEBUG) console.log("[stages] using file:", STAGES_JSON);
   } catch (e) {
     console.warn(`[stages] 解析失敗：`, e?.message || e);
@@ -144,13 +149,12 @@ function loadStages() {
   }
 }
 loadStages();
-
 function getStageName(stageNo) {
   const n = Number(stageNo);
   return STAGE_MAP[n] ?? STAGE_MAP[String(n)] ?? `stage_${n}`;
 }
 
-/* ================== 共用小工具 ================== */
+/* ================== 共用工具 ================== */
 function safeSegment(s) {
   return String(s || "")
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
@@ -158,11 +162,6 @@ function safeSegment(s) {
     .trim()
     .slice(0, 80);
 }
-
-// 建立可寫目錄（即便現在不落地，保留以兼容未來需求）
-try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); } catch {}
-
-// 取得台北時間：YYYYMMDD-HHMMSS
 function taipeiTimestamp() {
   const parts = new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -178,53 +177,28 @@ function taipeiTimestamp() {
   return `${get("year")}${get("month")}${get("day")}-${get("hour")}${get("minute")}${get("second")}`;
 }
 
-/* ================== Google Drive OAuth2（lazy 初始化） ================== */
-let drive = null;
-const SCOPES = [
-  "https://www.googleapis.com/auth/drive.file", // 最小必要：上傳/管理自己建立的檔案
-  "https://www.googleapis.com/auth/drive"
-];
-
-// 預設寫入 /tmp，支援以 OAUTH_TOKEN_PATH 覆寫（或兼容舊名 GOOGLE_OAUTH_TOKEN_PATH）
-const OAUTH_TOKEN_PATH =
-  process.env.OAUTH_TOKEN_PATH ||
-  process.env.GOOGLE_OAUTH_TOKEN_PATH ||
-  "/tmp/oauth-token.json";
-
-function createOAuthClient() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_OAUTH_CLIENT_ID,
-    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    process.env.GOOGLE_OAUTH_REDIRECT
-  );
-}
-function loadSavedToken() {
-  try { return JSON.parse(fs.readFileSync(OAUTH_TOKEN_PATH, "utf8")); } catch { return null; }
-}
-function saveToken(tokens) {
-  fs.mkdirSync(path.dirname(OAUTH_TOKEN_PATH), { recursive: true });
-  fs.writeFileSync(OAUTH_TOKEN_PATH, JSON.stringify(tokens), "utf8");
-}
-function ensureDriveReady() {
-  if (drive) return drive;
-  const saved = loadSavedToken();
-  if (!saved) return null;
-  const oauth2 = createOAuthClient();
-  oauth2.setCredentials(saved);
-  drive = google.drive({ version: "v3", auth: oauth2 });
-  return drive;
+/* ================== Google Drive（Service Account via Metadata） ================== */
+/**
+ * 這裡用 GoogleAuth（無金鑰檔），Cloud Run 會自動用執行身分服務帳號
+ * 請把該服務帳號加入 Shared Drive（內容管理員）
+ */
+const auth = new google.auth.GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/drive.file"], // 上傳/管理本服務建立的檔案
+});
+function getDrive() {
+  return google.drive({ version: "v3", auth });
 }
 
-/* ================== Drive 工具 ================== */
 const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 const escQ = (str = "") => String(str).replace(/(['\\])/g, "\\$1");
 
+/** 在特定父層底下找資料夾（支援 Shared Drive） */
 async function driveFindFolder(drv, name, parentId) {
   const q = [
     `mimeType='${DRIVE_FOLDER_MIME}'`,
     `name='${escQ(name)}'`,
     "trashed=false",
-    parentId ? `'${escQ(parentId)}' in parents` : ""
+    parentId ? `'${escQ(parentId)}' in parents` : "",
   ].filter(Boolean).join(" and ");
 
   const { data } = await drv.files.list({
@@ -233,6 +207,9 @@ async function driveFindFolder(drv, name, parentId) {
     pageSize: 1,
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
+    ...(DRIVE_SHARED_DRIVE_ID
+      ? { driveId: DRIVE_SHARED_DRIVE_ID, corpora: "drive" }
+      : {}), // 若有設定 Shared Drive ID，讓查詢更準
   });
   return data.files?.[0]?.id || null;
 }
@@ -273,60 +250,69 @@ async function ensureProjectStageFolder(drv, rootId, projectNo, projectName, sta
   return { projectFolderId, stageFolderId };
 }
 
-// ★ 直傳：使用 buffer（不落地磁碟）
-async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, stageNo, projectName, stageName) {
-  const drv = ensureDriveReady();
-  if (!drv || !GDRIVE_FOLDER_ID) return { ok: false, error: "Drive 未設定或未授權" };
+/** 以 buffer 直傳到 Drive（Service Account） */
+async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, stageNo, projectName, stageName, appProps) {
+  if (!DRIVE_USE_SERVICE_ACCOUNT) {
+    return { ok: false, error: "Service Account 模式未啟用（請設定 DRIVE_USE_SERVICE_ACCOUNT=true）" };
+  }
+  if (!GDRIVE_FOLDER_ID) {
+    return { ok: false, error: "未設定 GDRIVE_FOLDER_ID（Shared Drive 裡的目標資料夾 ID）" };
+  }
+
+  const drv = getDrive();
 
   try {
     const { stageFolderId } = await ensureProjectStageFolder(
       drv, GDRIVE_FOLDER_ID, projectNo, projectName, stageNo, stageName
     );
 
-    // 命名：工程編號_階段編號_台北時間_原檔名尾巴（安全化）
+    // 命名：工程編號_階段編號_台北時間_原檔名
     const stamp = taipeiTimestamp();
     const baseOriginal = path.basename(originalName || "file");
     const fileName = `${projectNo}_${stageNo}_${stamp}_${safeSegment(baseOriginal)}`;
 
-    const media = {
-      mimeType: mimeType || "application/octet-stream",
-      body: Readable.from(buffer),
-    };
+    const media = { mimeType: mimeType || "application/octet-stream", body: Readable.from(buffer) };
 
-    // 建檔
-    const createRes = await drv.files.create({
-      requestBody: { name: fileName, parents: [stageFolderId] },
+    const { data: created } = await drv.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [stageFolderId],
+        // 加上 appProperties 以便之後從 Drive API 也能追溯（可選）
+        appProperties: appProps || undefined,
+        description: appProps?.uploadedByName
+          ? `Uploaded by ${appProps.uploadedByName} at ${new Date().toISOString()}`
+          : undefined,
+      },
       media,
-      fields: "id,name,parents,webViewLink,webContentLink",
+      fields: "id,name,parents,webViewLink,webContentLink,thumbnailLink,iconLink",
       supportsAllDrives: true,
     });
-    const fileId = createRes.data.id;
 
-    // （可選）開啟公開讀取權限，供前端預覽
+    // （可選）對外可預覽（若不需公開，移除這段）
     try {
       await drv.permissions.create({
-        fileId,
+        fileId: created.id,
         requestBody: { role: "reader", type: "anyone" },
         supportsAllDrives: true,
       });
     } catch (_) {}
 
-    // 取最終連結/縮圖
-    const info = await drv.files.get({
-      fileId,
-      fields: "id,webViewLink,webContentLink,thumbnailLink",
+    // 取回完整資訊
+    const { data: info } = await drv.files.get({
+      fileId: created.id,
+      fields: "id,name,webViewLink,webContentLink,thumbnailLink,iconLink",
       supportsAllDrives: true,
     });
 
-    // 回傳給呼叫端使用（含最終檔名）
     return {
       ok: true,
-      fileId,
+      fileId: info.id,
+      driveFileName: info.name,
       stageFolderId,
-      webViewLink: info.data.webViewLink || null,
-      webContentLink: info.data.webContentLink || null,
-      thumbnailLink: info.data.thumbnailLink || null,
-      driveFileName: createRes.data.name, // ← 雲端實際檔名
+      webViewLink: info.webViewLink || null,
+      webContentLink: info.webContentLink || null,
+      thumbnailLink: info.thumbnailLink || null,
+      iconLink: info.iconLink || null,
     };
   } catch (err) {
     const e = err?.errors?.[0] || err?.response?.data?.error || err;
@@ -336,22 +322,14 @@ async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, st
   }
 }
 
-/* ================== 前置 middleware：解析專案/階段資訊 ================== */
+/* ================== 解析專案/階段（保留原邏輯） ================== */
 async function resolveUploadTargetDir(req, _res, next) {
   try {
     const projectNo = String(req.params.projectNo || "");
     const stageNoInt = Number(req.params.stageNo);
 
-    if (DEV_DEBUG) {
-      console.log("[upload] params:", { projectNo, stageNoInt });
-      console.log("[upload] UPLOAD_ROOT:", UPLOAD_ROOT);
-    }
-
-    // 雖然不落地，仍建立 /tmp/uploads 結構，避免未來改動需要
-    try {
-      fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
-      fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK);
-    } catch {}
+    // 建立對應本地目錄（雖然不落地，保留相容性）
+    try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK); } catch {}
 
     const { rows } = await pool.query(
       `SELECT name FROM project WHERE project_id = $1 LIMIT 1`,
@@ -376,7 +354,7 @@ async function resolveUploadTargetDir(req, _res, next) {
   }
 }
 
-/* ================== Multer（memoryStorage，不落地） ================== */
+/* ================== Multer（memoryStorage） ================== */
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 10 },
@@ -388,76 +366,14 @@ const upload = multer({
 });
 const acceptAny = upload.any();
 
-/* ================== Router 初始化 ================== */
-const publicRouter = express.Router(); // 不需登入（OAuth/檢查）
-const router = express.Router();       // 需登入（上傳/查詢）
+/* ================== Router ================== */
+const router = express.Router();
 
-/* ============ 公開：OAuth 流程（一次授權即可） ============ */
-publicRouter.get("/oauth2/start", (_req, res) => {
-  const oauth2 = createOAuthClient();
-  const url = oauth2.generateAuthUrl({
-    access_type: "offline",
-    prompt: "consent",
-    scope: SCOPES,
-    include_granted_scopes: true,
-  });
-  res.redirect(url);
-});
-
-publicRouter.get("/oauth2/callback", async (req, res) => {
-  try {
-    const code = req.query.code;
-    const oauth2 = createOAuthClient();
-    const { tokens } = await oauth2.getToken(code);
-    saveToken(tokens);
-    oauth2.setCredentials(tokens);
-    drive = google.drive({ version: "v3", auth: oauth2 });
-    res.send("Google Drive 授權完成，請回到系統再試上傳。");
-  } catch (e) {
-    console.error("[OAuth callback] error:", e?.response?.data || e);
-    res.status(500).send("授權失敗：" + (e?.message || e));
-  }
-});
-
-/* ============ 公開：Drive 狀態檢查（實用） ============ */
-// 驗證目前 OAuth 身分
-publicRouter.get("/__whoami", async (_req, res) => {
-  try {
-    const drv = ensureDriveReady();
-    if (!drv) return res.json({ ok: false, message: "Drive client not ready (未授權或無 token)" });
-    const me = await drv.about.get({ fields: "user, storageQuota" });
-    res.json({ ok: true, user: me.data.user, storageQuota: me.data.storageQuota });
-  } catch (e) {
-    const msg = e?.response?.data?.error?.message || e.message || String(e);
-    if (/invalid_grant/i.test(msg)) {
-      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請重新授權：/api/drive/oauth2/start" });
-    }
-    res.json({ ok: false, error: msg });
-  }
-});
-
-// 檢查目標資料夾是否可讀/為資料夾
-publicRouter.get("/__check-folder", async (_req, res) => {
-  try {
-    const drv = ensureDriveReady();
-    if (!drv) return res.json({ ok: false, msg: "Drive client not ready (未授權)" });
-    const meta = await drv.files.get({
-      fileId: GDRIVE_FOLDER_ID,
-      fields: "id,name,mimeType,driveId,permissions",
-      supportsAllDrives: true,
-    });
-    res.json({ ok: true, meta: meta.data });
-  } catch (e) {
-    const msg = e?.response?.data?.error?.message || e.message || String(e);
-    if (/invalid_grant/i.test(msg)) {
-      return res.status(401).json({ ok:false, error:"INVALID_GRANT", hint:"請重新授權：/api/drive/oauth2/start" });
-    }
-    res.json({ ok: false, error: msg });
-  }
-});
-
-/* ============ 受保護：上傳與查詢 ============ */
-// 上傳：/projects/:projectNo/stages/:stageNo/upload
+/**
+ * 上傳：/projects/:projectNo/stages/:stageNo/upload
+ * - 需登入（attachUser + requireAuth）
+ * - 會從 req.user.username 反查 user.name，存到 uploaded_by_name
+ */
 router.post(
   "/projects/:projectNo/stages/:stageNo/upload",
   attachUser,
@@ -467,6 +383,10 @@ router.post(
   async (req, res) => {
     const client = await pool.connect();
     try {
+      if (!DRIVE_USE_SERVICE_ACCOUNT) {
+        return res.status(400).json({ ok: false, error: "Service Account 模式未啟用（DRIVE_USE_SERVICE_ACCOUNT=true）" });
+      }
+
       const projectNo = String(req.params.projectNo || "");
       const stageNo = Number(req.params.stageNo);
 
@@ -475,6 +395,27 @@ router.post(
       }
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ ok: false, error: "沒有檔案" });
+      }
+
+      // 1) 依 user_name 反查真實姓名 name（你 DB 的欄位我猜是 user.username / user.name）
+      let uploadedByName = null;
+      const loginUsername = req.user?.username || req.user?.user_name || null;
+
+      if (loginUsername) {
+        try {
+          // 表名/欄位名請依你的實際 schema 調整（這裡假設 user 表：username/name）
+          const rs = await pool.query(
+            `SELECT name FROM "user" WHERE username = $1 LIMIT 1`,
+            [String(loginUsername)]
+          );
+          uploadedByName = rs.rows?.[0]?.name || null;
+        } catch (e) {
+          if (DEV_DEBUG) console.warn("[upload] 查 name 失敗，將 fallback：", e?.message || e);
+        }
+      }
+      if (!uploadedByName) {
+        // fallback：若 DB 查不到，就用 token 裡的 name 或 username
+        uploadedByName = req.user?.name || req.user?.username || "unknown";
       }
 
       const projectName = req._projectName;
@@ -486,6 +427,14 @@ router.post(
       await client.query("BEGIN");
 
       for (const f of req.files) {
+        // 附帶 appProperties（非必須，但利於從 Drive 端追溯）
+        const appProps = {
+          uploadedByName: String(uploadedByName || ""),
+          uploadedAt: new Date().toISOString(),
+          projectNo: String(projectNo),
+          stageNo: String(stageNo),
+        };
+
         const r = await uploadBufferToDrive(
           f.buffer,
           f.originalname,
@@ -493,7 +442,8 @@ router.post(
           projectNo,
           stageNo,
           projectName,
-          stageName
+          stageName,
+          appProps
         );
         if (!r.ok) throw new Error(r.error || "Drive upload failed");
 
@@ -501,23 +451,24 @@ router.post(
         const driveFileId = r.fileId;
         const thumbnailLink = r.thumbnailLink || null;
 
+        // 2) 寫入 DB：新增 uploaded_by_name
         await upsertProjectTextUpload(client, {
           project_id: projectNo,
           text_no: stageNo,
           file_url: driveUrl,
           drive_file_id: driveFileId,
           thumbnail_link: thumbnailLink,
+          uploaded_by_name: uploadedByName, // ← ★ 請在 repo 的 INSERT/UPSERT 補上這個欄位 ★
         });
 
-        const driveFileName = r.driveFileName; // 從 uploadBufferToDrive 回傳值取得
+        // 回傳用
         savedFiles.push({
           url: driveUrl,
-          name: driveFileName,           // 統一用雲端最終檔名
-          originalName: f.originalname,  // 保留原始檔名供查核
+          name: r.driveFileName,          // 雲端實際檔名
+          originalName: f.originalname,   // 原檔名（稽核用）
           size: f.size,
           mime: f.mimetype,
         });
-
         cloudResults.push({ drive: { ok: true, url: driveUrl, fileId: driveFileId, thumbnailLink } });
       }
 
@@ -541,7 +492,9 @@ router.post(
   }
 );
 
-// 查詢：最後一次上傳
+/**
+ * 查詢：最後一次上傳（保留原介面）
+ */
 router.get(
   "/projects/:projectNo/stages/:stageNo/last",
   requireAuth,
@@ -563,39 +516,70 @@ router.get(
   }
 );
 
-/* ================== 啟動時簡易檢查（可留作健康檢查） ================== */
-(async function bootLogDriveOnce() {
+/* ================== 健康檢查（Service Account 版） ================== */
+(async function bootCheck() {
   try {
-    const drv = ensureDriveReady();
-    if (!drv) {
-      console.log("[Drive] client not ready (no token or missing OAuth).");
-      console.log("        → 請先走 /api/drive/oauth2/start 完成授權。");
+    if (!DRIVE_USE_SERVICE_ACCOUNT) {
+      console.log("[Drive] Service Account 模式未啟用（DRIVE_USE_SERVICE_ACCOUNT=false）");
       return;
     }
-    console.log("[Drive] OAuth token loaded, client ready.");
-
-    if (GDRIVE_FOLDER_ID) {
+    if (!GDRIVE_FOLDER_ID) {
+      console.warn("[Drive] 未設定 GDRIVE_FOLDER_ID（上傳目標資料夾 ID）。");
+    }
+    // 試拉一次 token（Metadata Server）
+    const d = getDrive();
+    // 若有設定 Shared Drive ID，可快速驗證可讀
+    if (DRIVE_SHARED_DRIVE_ID) {
       try {
-        const meta = await drv.files.get({
-          fileId: GDRIVE_FOLDER_ID,
-          fields: "id,name,mimeType,driveId",
+        await d.files.list({
+          pageSize: 1,
           supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+          driveId: DRIVE_SHARED_DRIVE_ID,
+          corpora: "drive",
+          fields: "files(id,name)",
         });
-        if (meta?.data?.mimeType === "application/vnd.google-apps.folder") {
-          console.log("[Drive] Root folder OK:", { id: meta.data.id, name: meta.data.name });
-        } else {
-          console.warn("[Drive] 指定的 GDRIVE_FOLDER_ID 不是資料夾或不可讀。");
-        }
+        console.log("[Drive] Service Account 驗證成功，可讀 Shared Drive：", DRIVE_SHARED_DRIVE_ID);
       } catch (e) {
-        console.warn("[Drive] Root folder check failed:", e?.response?.data?.error?.message || e.message || String(e));
+        console.warn("[Drive] Shared Drive 檢查失敗：", e?.response?.data?.error?.message || e.message || String(e));
       }
     } else {
-      console.log("[Drive] GDRIVE_FOLDER_ID 未設定（略過根資料夾檢查）。");
+      console.log("[Drive] 未提供 DRIVE_SHARED_DRIVE_ID（僅影響查詢精準度，上傳不受影響）");
     }
   } catch (e) {
     console.warn("[Drive] boot check error:", e?.message || String(e));
   }
 })();
 
-/* ================== 匯出：公開 & 受保護 Router ================== */
-module.exports = { router, publicRouter };
+router.get("/__drive/diag", async (req, res) => {
+  try {
+    if (!process.env.DRIVE_USE_SERVICE_ACCOUNT) {
+      return res.status(400).json({ ok: false, msg: "DRIVE_USE_SERVICE_ACCOUNT 未設" });
+    }
+    if (!process.env.GDRIVE_FOLDER_ID) {
+      return res.status(400).json({ ok: false, msg: "GDRIVE_FOLDER_ID 未設" });
+    }
+    const d = getDrive();
+    const meta = await d.files.get({
+      fileId: process.env.GDRIVE_FOLDER_ID,
+      fields: "id,name,mimeType,driveId",
+      supportsAllDrives: true,
+    });
+    const list = await d.files.list({
+      q: `'${process.env.GDRIVE_FOLDER_ID}' in parents and trashed=false`,
+      fields: "files(id,name)",
+      pageSize: 1,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      ...(process.env.DRIVE_SHARED_DRIVE_ID ? { driveId: process.env.DRIVE_SHARED_DRIVE_ID, corpora: "drive" } : {}),
+    });
+    res.json({ ok: true, folder: meta.data, sample: list.data.files });
+  } catch (e) {
+    const msg = e?.response?.data?.error?.message || e?.message || String(e);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+
+/* ================== 匯出 ================== */
+module.exports = { router };
