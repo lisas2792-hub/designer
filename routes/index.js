@@ -13,9 +13,13 @@ router.use("/responsible-user", require("./responsibleuser"));
 // stageplan
 router.use("/stageplan", require("./stageplan"));
 
-// stageupload（私有端）
+// stageupload
 const stageUploadModule = require("./stageupload");
-router.use("/", stageUploadModule.router);
+// (改掛載前綴)router.use("/", stageUploadModule.router);
+router.use("/stageupload", stageUploadModule.router); 
+
+// reminders
+router.use("/reminders", require("./reminders"));
 
 // 健康檢查
 router.get("/__ping", (_req, res) => {

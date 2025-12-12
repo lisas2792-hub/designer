@@ -2,29 +2,32 @@
 "use strict";
 
 /**
- * ✅ 專業版：服務帳號 + Shared Drive
- * - 不再使用使用者 OAuth，不會跳授權、不會掉 token
+ * ✅ 專業版：服務帳號 + Shared Drive（Production 推薦）
  * - Cloud Run 以「服務帳號（執行身分）」呼叫 Google Drive API
- * - 你只要把該服務帳號加入 Shared Drive（內容管理員）即可
+ * - 只要把該服務帳號加入 Shared Drive（內容管理員）即可
  *
- * ▶ 必要環境變數（部署時加上）：
- *   DRIVE_USE_SERVICE_ACCOUNT=true
- *   DRIVE_SHARED_DRIVE_ID=<你的 Shared Drive ID>          # 用於查詢/列檔（選用，但建議設定）
- *   GDRIVE_FOLDER_ID=<Shared Drive 裡真正要上傳的資料夾ID> # 直接沿用你的既有變數名（保持相容）
- *   MAX_UPLOAD_MB=20（可調）
+ * ▶ 必要環境變數（部署時）：
+ *   DRIVE_USE_SERVICE_ACCOUNT=true                          // [PROD KEEP] 強制使用服務帳號模式
+ *   DRIVE_SHARED_DRIVE_ID=<你的 Shared Drive ID>            // [PROD KEEP] 提升查詢精準度
+ *   GDRIVE_FOLDER_ID=<Shared Drive 裡真正要上傳的資料夾ID> // [PROD KEEP]
+ *   MAX_UPLOAD_MB=20                                       // [PROD KEEP] Cloud Run 單請求 <= 32MB
+ *
+ * ▶ 建議環境變數（安全/診斷）：
+ *   DRIVE_PUBLIC_READ=true/false // [DEV ONLY 建議 true] DEV 方便預覽；[PROD 建議不設或 false]
+ *   DEV_DEBUG=true/false         // [DEV ONLY 建議 true] 額外日誌
  *
  * ▶ DB 需求：
  *   - 在 project_text_upload（或你實際表名）新增欄位 uploaded_by_name text
  *   - 你的 upsertProjectTextUpload() 需把 uploaded_by_name 一併寫入
- *     （我已在呼叫時傳入該屬性，請在 repo 增加欄位對應）
  *
  * ▶ 認證需求：
  *   - 你既有的 attachUser / requireAuth 不變
- *   - 這份程式會從 req.user.username 反查出 name，存到 uploaded_by_name
+ *   - 這份程式會從 req.user.username 反查 user.name，存到 uploaded_by_name
  *
  * ▶ 注意：
- *   - 仍保留「專案/階段 → 自動建資料夾」與「命名規則」
- *   - 保留原本回應結構（files / cloud / cloudTarget）
+ *   - 保留「專案/階段 → 自動建資料夾」與「命名規則」
+ *   - 回應結構沿用（files / cloud / cloudTarget）
+ *   - 支援 Shared Drive
  */
 
 const express = require("express");
@@ -35,18 +38,30 @@ const { google } = require("googleapis");
 const { Readable } = require("stream");
 
 const { pool } = require("../db");
-const { attachUser, requireAuth } = require("../middleware/auth");
+const { attachUser, requireAuth /*, requireAdmin*/ } = require("../middleware/auth"); // ← 如要保護 /__drive/diag，可打開 requireAdmin
 const { upsertProjectTextUpload, getLastUpload } = require("../repositories/stageUploadRepo");
 
-/* ================== 環境變數 ================== */
-const DEV_DEBUG = (process.env.DEV_DEBUG || "false").toLowerCase() === "true";
+/* ================== 環境變數（統一布林處理 + 模式開關） ================== */
+const asBool = (v, def = false) => {
+  if (v == null) return def;
+  const s = String(v).trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "y";
+};
+
+const NODE_ENV = process.env.NODE_ENV || "development";
+const IS_PROD = NODE_ENV === "production";
+
+const DEV_DEBUG = asBool(process.env.DEV_DEBUG, !IS_PROD); // Dev 預設 true / Prod 預設 false
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20);
 
-const DRIVE_USE_SERVICE_ACCOUNT = (process.env.DRIVE_USE_SERVICE_ACCOUNT || "false").toLowerCase() === "true";
-const DRIVE_SHARED_DRIVE_ID = process.env.DRIVE_SHARED_DRIVE_ID || ""; // 供查檔/列檔使用（建議設定）
-const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || "";           // 你原來的上傳目標資料夾 ID（位於 Shared Drive 內）
+const DRIVE_USE_SERVICE_ACCOUNT = asBool(process.env.DRIVE_USE_SERVICE_ACCOUNT, IS_PROD); // [PROD KEEP] 預設 production=true
+const DRIVE_SHARED_DRIVE_ID = process.env.DRIVE_SHARED_DRIVE_ID || "";                  // [PROD KEEP] 建議設定
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || "";                             // [PROD KEEP]
 
 const CLOUD_TARGET = (process.env.CLOUD_TARGET || "DRIVE").toUpperCase();
+
+// ⛳「對外公開讀取」的權限（只在 DEV 方便用）：Prod 建議關閉（不設或 false）
+const DRIVE_PUBLIC_READ = asBool(process.env.DRIVE_PUBLIC_READ, false); // [DEV ONLY 建議 true] / [PROD 建議 false]
 
 /* ================== 上傳限制 ================== */
 const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
@@ -55,7 +70,7 @@ const ALLOWED_MIME = (process.env.ALLOWED_MIME ||
   .map((s) => s.trim().toLowerCase());
 
 /* ================== 目錄與 stages.json（保留原行為） ================== */
-const UPLOAD_ROOT = "/tmp/uploads"; // 仍建立目錄結構（即使不落地），保留相容性
+const UPLOAD_ROOT = "/tmp/uploads"; // [PROD KEEP] Cloud Run 只能寫 /tmp；本機也 OK
 const pathExists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
 try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); } catch {}
 
@@ -252,6 +267,7 @@ async function ensureProjectStageFolder(drv, rootId, projectNo, projectName, sta
 
 /** 以 buffer 直傳到 Drive（Service Account） */
 async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, stageNo, projectName, stageName, appProps) {
+  // [PROD KEEP] 這支目前只允許 Service Account；Dev 若要 OAuth，可在此加入「另一條分支」做自動切換
   if (!DRIVE_USE_SERVICE_ACCOUNT) {
     return { ok: false, error: "Service Account 模式未啟用（請設定 DRIVE_USE_SERVICE_ACCOUNT=true）" };
   }
@@ -288,14 +304,21 @@ async function uploadBufferToDrive(buffer, originalName, mimeType, projectNo, st
       supportsAllDrives: true,
     });
 
-    // （可選）對外可預覽（若不需公開，移除這段）
+    /* 🔐 檔案權限：預設不公開（Production 安全）
+       - DEV 想方便預覽：.env 設 DRIVE_PUBLIC_READ=true
+       - PROD 建議不要設（維持非公開，由 Shared Drive 權限控管）
+    */
     try {
-      await drv.permissions.create({
-        fileId: created.id,
-        requestBody: { role: "reader", type: "anyone" },
-        supportsAllDrives: true,
-      });
-    } catch (_) {}
+      if (DRIVE_PUBLIC_READ) { // [DEV ONLY]
+        await drv.permissions.create({
+          fileId: created.id,
+          requestBody: { role: "reader", type: "anyone" },
+          supportsAllDrives: true,
+        });
+      }
+    } catch (_) {
+      // 權限設定失敗不致命，忽略
+    }
 
     // 取回完整資訊
     const { data: info } = await drv.files.get({
@@ -328,7 +351,7 @@ async function resolveUploadTargetDir(req, _res, next) {
     const projectNo = String(req.params.projectNo || "");
     const stageNoInt = Number(req.params.stageNo);
 
-    // 建立對應本地目錄（雖然不落地，保留相容性）
+    // 建立對應本地目錄（相容性；實際已 memoryStorage）
     try { fs.mkdirSync(UPLOAD_ROOT, { recursive: true }); fs.accessSync(UPLOAD_ROOT, fs.constants.W_OK); } catch {}
 
     const { rows } = await pool.query(
@@ -383,6 +406,7 @@ router.post(
   async (req, res) => {
     const client = await pool.connect();
     try {
+      // [PROD KEEP] 目前只允許 Service Account 模式
       if (!DRIVE_USE_SERVICE_ACCOUNT) {
         return res.status(400).json({ ok: false, error: "Service Account 模式未啟用（DRIVE_USE_SERVICE_ACCOUNT=true）" });
       }
@@ -435,6 +459,7 @@ router.post(
           stageNo: String(stageNo),
         };
 
+        // === 實際上傳到 Drive（Service Account） ===
         const r = await uploadBufferToDrive(
           f.buffer,
           f.originalname,
@@ -539,47 +564,157 @@ router.get(
           corpora: "drive",
           fields: "files(id,name)",
         });
-        console.log("[Drive] Service Account 驗證成功，可讀 Shared Drive：", DRIVE_SHARED_DRIVE_ID);
+        if (DEV_DEBUG) {
+          console.log("[Drive] Service Account 驗證成功，可讀 Shared Drive：", DRIVE_SHARED_DRIVE_ID);
+        }
       } catch (e) {
         console.warn("[Drive] Shared Drive 檢查失敗：", e?.response?.data?.error?.message || e.message || String(e));
       }
     } else {
-      console.log("[Drive] 未提供 DRIVE_SHARED_DRIVE_ID（僅影響查詢精準度，上傳不受影響）");
+      if (DEV_DEBUG) console.log("[Drive] 未提供 DRIVE_SHARED_DRIVE_ID（僅影響查詢精準度，上傳不受影響）");
     }
   } catch (e) {
     console.warn("[Drive] boot check error:", e?.message || String(e));
   }
 })();
 
-router.get("/__drive/diag", async (req, res) => {
+/* ================== 診斷端點（建議 DEV 開、PROD 關或限 Admin） ================== */
+// 方案 1：只在 DEV 開（PROD 完全不提供）
+if (!IS_PROD) {
+  router.get("/__drive/diag", async (req, res) => {
+    try {
+      if (!process.env.DRIVE_USE_SERVICE_ACCOUNT) {
+        return res.status(400).json({ ok: false, msg: "DRIVE_USE_SERVICE_ACCOUNT 未設" });
+      }
+      if (!process.env.GDRIVE_FOLDER_ID) {
+        return res.status(400).json({ ok: false, msg: "GDRIVE_FOLDER_ID 未設" });
+      }
+      const d = getDrive();
+      const meta = await d.files.get({
+        fileId: process.env.GDRIVE_FOLDER_ID,
+        fields: "id,name,mimeType,driveId",
+        supportsAllDrives: true,
+      });
+      const list = await d.files.list({
+        q: `'${process.env.GDRIVE_FOLDER_ID}' in parents and trashed=false`,
+        fields: "files(id,name)",
+        pageSize: 1,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        ...(process.env.DRIVE_SHARED_DRIVE_ID ? { driveId: process.env.DRIVE_SHARED_DRIVE_ID, corpora: "drive" } : {}),
+      });
+      res.json({ ok: true, folder: meta.data, sample: list.data.files });
+    } catch (e) {
+      const msg = e?.response?.data?.error?.message || e?.message || String(e);
+      res.status(500).json({ ok: false, error: msg });
+    }
+  });
+}
+
+/* 方案 2：如果你要在 PROD 也保留這個端點，務必限管理員（請二選一，預設註解掉） */
+// router.get("/__drive/diag", requireAdmin, async (req, res) => {
+//   try {
+//     if (!process.env.DRIVE_USE_SERVICE_ACCOUNT) {
+//       return res.status(400).json({ ok: false, msg: "DRIVE_USE_SERVICE_ACCOUNT 未設" });
+//     }
+//     if (!process.env.GDRIVE_FOLDER_ID) {
+//       return res.status(400).json({ ok: false, msg: "GDRIVE_FOLDER_ID 未設" });
+//     }
+//     const d = getDrive();
+//     const meta = await d.files.get({
+//       fileId: process.env.GDRIVE_FOLDER_ID,
+//       fields: "id,name,mimeType,driveId",
+//       supportsAllDrives: true,
+//     });
+//     const list = await d.files.list({
+//       q: `'${process.env.GDRIVE_FOLDER_ID}' in parents and trashed=false`,
+//       fields: "files(id,name)",
+//       pageSize: 1,
+//       supportsAllDrives: true,
+//       includeItemsFromAllDrives: true,
+//       ...(process.env.DRIVE_SHARED_DRIVE_ID ? { driveId: process.env.DRIVE_SHARED_DRIVE_ID, corpora: "drive" } : {}),
+//     });
+//     res.json({ ok: true, folder: meta.data, sample: list.data.files });
+//   } catch (e) {
+//     const msg = e?.response?.data?.error?.message || e?.message || String(e);
+//     res.status(500).json({ ok: false, error: msg });
+//   }
+// });
+
+/* ============================================================
+ *  OAuth Public Router（本機用 OAuth）
+ *  ------------------------------------------------------------
+ *  ✔ DEV 本機使用：/api/drive/oauth2/start
+ *  ✔ DEV 本機回調：/api/drive/oauth2/callback
+ *  ✔ 這些路由正式環境（prod）建議關閉
+ * ============================================================ */
+
+const publicRouter = express.Router();
+
+/**
+ * OAuth Start（你以前用的）
+ * GET /api/drive/oauth2/start
+ */
+publicRouter.get("/oauth2/start", (req, res) => {
   try {
-    if (!process.env.DRIVE_USE_SERVICE_ACCOUNT) {
-      return res.status(400).json({ ok: false, msg: "DRIVE_USE_SERVICE_ACCOUNT 未設" });
-    }
-    if (!process.env.GDRIVE_FOLDER_ID) {
-      return res.status(400).json({ ok: false, msg: "GDRIVE_FOLDER_ID 未設" });
-    }
-    const d = getDrive();
-    const meta = await d.files.get({
-      fileId: process.env.GDRIVE_FOLDER_ID,
-      fields: "id,name,mimeType,driveId",
-      supportsAllDrives: true,
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_OAUTH_CLIENT_ID,
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      process.env.GOOGLE_OAUTH_REDIRECT
+    );
+
+    const authorizeUrl = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: ["https://www.googleapis.com/auth/drive.file"],
+      prompt: "consent",
     });
-    const list = await d.files.list({
-      q: `'${process.env.GDRIVE_FOLDER_ID}' in parents and trashed=false`,
-      fields: "files(id,name)",
-      pageSize: 1,
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      ...(process.env.DRIVE_SHARED_DRIVE_ID ? { driveId: process.env.DRIVE_SHARED_DRIVE_ID, corpora: "drive" } : {}),
-    });
-    res.json({ ok: true, folder: meta.data, sample: list.data.files });
-  } catch (e) {
-    const msg = e?.response?.data?.error?.message || e?.message || String(e);
-    res.status(500).json({ ok: false, error: msg });
+
+    return res.redirect(authorizeUrl);
+  } catch (err) {
+    console.error("[OAuth/start] error:", err);
+    res.status(500).send("OAuth 初始化錯誤");
   }
 });
 
+/**
+ * OAuth Callback
+ * GET /api/drive/oauth2/callback
+ * DEV 模式：把 token 存到 .tmp/oauth-token.json
+ */
+publicRouter.get("/oauth2/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
+    if (!code) return res.status(400).send("缺少 code");
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_OAUTH_CLIENT_ID,
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      process.env.GOOGLE_OAUTH_REDIRECT
+    );
+
+    const { tokens } = await oauth2Client.getToken(code);
+
+    fs.mkdirSync(".tmp", { recursive: true });
+    fs.writeFileSync(
+      process.env.OAUTH_TOKEN_PATH || ".tmp/oauth-token.json",
+      JSON.stringify(tokens, null, 2)
+    );
+
+    return res.send(`
+      OAuth 授權成功！<br>
+      token 已儲存：<b>${process.env.OAUTH_TOKEN_PATH || ".tmp/oauth-token.json"}</b>
+    `);
+  } catch (err) {
+    console.error("[OAuth/callback] error:", err);
+    return res.status(500).send("OAuth callback 錯誤");
+  }
+});
+
+/* ============================================================
+ * ⭐ IMPORTANT ⭐
+ * Export public router as part of module.exports
+ * ============================================================ */
+module.exports = { router, publicRouter };
 
 /* ================== 匯出 ================== */
-module.exports = { router };
+// module.exports = { router };

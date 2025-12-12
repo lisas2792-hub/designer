@@ -1,0 +1,165 @@
+/* =========================================================
+   人員 Grid：桌機 5 / 平板 3 / 手機 2
+   ========================================================= */
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px; /* 略縮小但不擠 */
+}
+@media (max-width: 1200px) { .person-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px)  { .person-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* =========================================================
+   卡片基本樣式（整張人卡片：略縮但不貼邊）
+   ========================================================= */
+.person-card {
+  /* 控制 3×3 區的單格高度 & 間距（越小 → 卡片越矮） */
+  --row: 46px;   /* 原 46 → 34：每格稍小，仍好點擊 */
+  --gap: 10px;    /* 原 10 → 6：格間距略小 */
+
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;   /* 略小一點的圓角 */
+  padding: 10px;         /* 不貼邊；若要更緊湊可改 8 */
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.person-card .header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.person-card .name { font-weight: 600; font-size: 0.95rem; }
+.person-card .stats { font-size: 0.72rem; color: #555; margin-bottom: 2px; }
+
+/* =========================================================
+   3×3 區（收合固定高；展開自動撐高；hover 陰影不被吃）
+   ========================================================= */
+.person-card .affair-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: var(--row);
+  gap: var(--gap);
+  height: calc(var(--row) * 3 + var(--gap) * 2); /* 收合只顯示 3 行 */
+  margin-top: 6px;
+  overflow: visible; /* 讓第一排 hover 陰影不被裁切 */
+}
+.person-card.is-expanded .affair-list { height: auto; } /* 展開：全部可見 */
+
+@media (max-width: 640px){
+  .person-card .affair-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* =========================================================
+   顯示更多：有 overflow 才顯示；貼近底邊
+   ========================================================= */
+.person-card .affair-more-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 6px;      /* 無更多時留的高度 */
+  margin-top: 6px;  /* 離 3×3 區的距離 */
+}
+.person-card.has-more .affair-more-row {
+  height: 14px;     /* 有更多時的點擊高度（仍靠近底邊） */
+  margin-top: 6px;
+}
+.affair-more-btn {
+  display: none; /* 由 JS 控制（>9 筆時顯示） */
+  padding: 3px 8px;
+  font-size: 11px;       /* 字不會太大 */
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: box-shadow .12s ease, background-color .12s ease, color .12s ease, border-color .12s ease;
+}
+.person-card.has-more .affair-more-btn { display: inline-flex; }
+.affair-more-btn:hover { background: #f9fafb; box-shadow: 0 3px 8px rgba(0,0,0,.06); }
+.affair-more-btn:focus-visible { outline: 2px solid rgba(59,130,246,.25); outline-offset: 2px; }
+
+/* =========================================================
+   事務格子（整塊可點）：微浮起、保留橘/紅；不改你的顏色規則
+   ========================================================= */
+.affair-item,
+button.affair-item {
+  appearance: none; -webkit-appearance: none;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  height: var(--row);
+  padding: 0 8px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  cursor: pointer; user-select: none;
+
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px; font-weight: 600; color: inherit;
+
+  transition: box-shadow .12s ease, transform .05s ease,
+              border-color .12s ease, background-color .12s ease, color .12s ease;
+  z-index: 0;
+}
+.affair-item:hover,
+button.affair-item:hover {
+  box-shadow: 0 4px 10px rgba(0,0,0,.06);
+  transform: translateY(-0.5px);
+  z-index: 1;
+}
+.affair-item:active,
+button.affair-item:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+.affair-item:focus-visible,
+button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outline-offset: 2px; }
+
+/* 橘/紅（沿用你的設定，不變） */
+.affair-item.warn,   button.affair-item.warn   { border-color: var(--warn-bd, #f59e0b); background: var(--warn-bg, #fff7ed); color: var(--warn-fg, #b45309); }
+.affair-item.danger, button.affair-item.danger { border-color: var(--danger-bd, #ef4444); background: var(--danger-bg, #fee2e2); color: var(--danger-fg, #991b1b); }
+
+/* 完成狀態（預留） */
+.affair-item.is-done, button.affair-item.is-done {
+  background: var(--done-bg, #ecfdf5);
+  border-color: var(--done-bd, #10b981);
+  color: #065f46;
+  text-decoration: line-through;
+}
+
+/* =========================================================
+   新增按鈕（與專案頁一致，收斂一點）
+   ========================================================= */
+#view-reminders .card-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+#view-reminders .function-buttons { display: flex; align-items: center; }
+#view-reminders .function-buttons > div { display: flex; gap: 8px; }
+#view-reminders .function-buttons button {
+  all: unset;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid #d1d5db;
+  background: #fff; color: #111827; cursor: pointer; font-size: 14px; line-height: 1; user-select: none;
+}
+#view-reminders #addAffairBtn {
+  border-color: var(--primary); color: var(--primary); background: #fff; font-weight: 600;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+#view-reminders #addAffairBtn:hover { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,.06); }
+#view-reminders #addAffairBtn:focus-visible { outline: 2px solid rgba(59,130,246,0.25); outline-offset: 2px; }
+#view-reminders #addAffairBtn:active { box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+#view-reminders #addAffairBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* =========================================================
+   新增事務 Modal（雙欄）
+   ========================================================= */
+#affairModal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.35); }
+#affairModal .modal-panel { width: min(720px, 92vw); background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 16px; }
+#affairModal .modal-title { font-weight: 700; font-size: 18px; margin: 0 0 8px 0; color: var(--text, #111827); }
+#affairModal .modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+#affairModal .modal-body .form-col-2 { grid-column: 1 / -1; }
+#affairModal .modal-body label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text, #111827); }
+#affairModal input[type="text"], #affairModal input[type="number"], #affairModal select, #affairModal textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; line-height: 1.4; box-sizing: border-box; background: #fff; color: #111827;
+}
+#affairModal textarea { resize: vertical; min-height: 96px; }
+#affairModal .modal-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+#affairModal .modal-actions button {
+  all: unset; display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 12px; border-radius: 8px; line-height: 1; border: 1px solid #d1d5db; background: #fff; color: #111827;
+  font-size: 14px; cursor: pointer; user-select: none; transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+#affairModal #af_submit { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+#affairModal .modal-actions button:hover { opacity: .9; }
+@media (max-width: 520px) { #affairModal .modal-panel { width: 92vw; padding: 12px; } #affairModal .modal-body { grid-template-columns: 1fr; } }

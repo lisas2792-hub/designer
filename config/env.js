@@ -1,22 +1,31 @@
-// 集中讀 .env 與驗證
-// Cloud Run 會在執行時注入 PORT，不被 .env 覆蓋。
-// 本機開發才需要載入 .env；在 production（Cloud Run）跳過。
-if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config();
+// config/env.js
+// 集中處理環境變數：本機載入 .env、標準化布林與數值、提供預設 PORT
+
+// 1) 只在非 production 載入 .env（本機除錯用）
+const nodeEnv = process.env.NODE_ENV || 'development';
+if (nodeEnv !== 'production') {
+  // 不用 top-level await；CommonJS 直接 require
+  require('dotenv').config();
 }
 
-const nodeEnv = process.env.NODE_ENV || "production";
+// 2) 標準化
+const isProd = nodeEnv === 'production';
+const PORT = Number(process.env.PORT) || 3000; // 本機預設 3000；Cloud Run 會注入 PORT=8080
 
-const ENV = {
-  nodeEnv,
-  isProd: nodeEnv === "production",
-
-  // 以 Cloud Run 提供的 PORT 為主；本機沒有時預設 8080
-  PORT: Number(process.env.PORT || 8080),
-
-  // 其他集中管理的變數可逐步加上來，例如：
-  // DATABASE_URL: process.env.DATABASE_URL,
-  // DRIVE_USE_SERVICE_ACCOUNT: process.env.DRIVE_USE_SERVICE_ACCOUNT === 'true',
+// 3) 可選：把重點旗標轉成布林（避免字串 'false' 被當成 true）
+const asBool = (v) => {
+  if (typeof v === 'boolean') return v;
+  if (v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'y';
 };
 
-module.exports = ENV;
+const DRIVE_USE_SERVICE_ACCOUNT = asBool(process.env.DRIVE_USE_SERVICE_ACCOUNT);
+
+// 4) 匯出給 server.js 使用
+module.exports = {
+  nodeEnv,
+  isProd,
+  PORT,
+  DRIVE_USE_SERVICE_ACCOUNT,
+};

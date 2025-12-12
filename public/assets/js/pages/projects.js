@@ -556,7 +556,7 @@ export function initProjectsFeature() {
       for (const u of users) {
         const opt = document.createElement('option');
         opt.value = String(u.id);
-        opt.textContent = u.name || u.username || String(u.id);
+        opt.textContent = u.username || u.name || String(u.id);
         selectEl.appendChild(opt);
       }
 

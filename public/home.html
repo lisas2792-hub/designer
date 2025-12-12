@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>登入後頁面</title>
+  <title>主頁面</title>
 
   <!-- SweetAlert2 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 
   <link rel="stylesheet" href="/assets/css/app.css?v=20251106">
   <link rel="stylesheet" href="/assets/css/pages/home.css?v=20251106">
+  <link rel="stylesheet" href="/assets/css/pages/reminders.css?v=20251205">
   
 </head>
 <body>
@@ -29,6 +30,7 @@
       </div>
       <ul class="nav">
         <li><button class="active" data-view="projects">專案進度</button></li>
+        <li><button data-view="reminders">事務提醒</button></li>
         <li><button data-view="password">修改密碼</button></li>
       </ul>
     </aside>
@@ -97,6 +99,24 @@
 
             <!-- 由程式動態注入 -->
             <div id="projectsGrid"></div>
+          </div>
+        </div>
+
+        <!-- 事務提醒 -->
+        <div id="view-reminders" class="view" style="display:none">
+          <div class="card">
+
+            <!-- 跟專案頁一致的工具列（空左 + 新增按鈕在右） -->
+            <div class="card-topbar">
+              <div></div> <!-- 專案頁是 legend，這裡先空著 -->
+              <div class="function-buttons">
+                <div>
+                  <button id="addAffairBtn">新增</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="remindersGrid" class="person-grid" aria-live="polite">載入中…</div>
           </div>
         </div>
 
@@ -169,6 +189,36 @@
           </div>
         </div>
       </div>
+
+      <!-- 新增事務 Modal -->
+      <div id="affairModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">新增事務</h3>
+            <button id="affairCloseBtn" class="modal-close" aria-label="關閉">&times;</button>
+          </div>
+          <div class="modal-body">
+            <label>案名（可留空）
+              <input id="af_title" />
+            </label>
+            <label class="form-col-2">內容（必填）
+              <textarea id="af_content" rows="4" placeholder="請輸入事務內容"></textarea>
+            </label>
+            <label>指派對象（必選）
+              <select id="af_assignee"></select>
+            </label>
+            <label>期限天數（必填，正整數）
+              <input id="af_due" type="number" min="1" step="1" />
+            </label>
+
+            <div class="modal-actions">
+              <button id="af_cancel">取消</button>
+              <button id="af_submit">建立</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -191,84 +241,146 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script type="module" src="/assets/js/pages/home.js?v=20251106"></script>
+  <script type="module" src="/assets/js/pages/reminders.js?v=20251204"></script>
 
+  <!-- 動態變更標題 -->
+  <script>
+    (function () {
+      const TITLE_MAP = {
+        "/": "首頁｜Designer",
+        "/projects" : "專案管理",
+        "/reminders": "事務提醒",
+        "/password" : "修改密碼"
+      };
 
-  <!-- 已在home.js中import -->
-
-  <!-- <script src="/assets/js/pages/password.js"></script> -->
-  <!-- <script type="module" src="/assets/js/pages/projects.js"></script> -->
-
-  <!-- <script type="module">
-    import { api, toUserMessage } from "/assets/js/api.js";
-
-    (async () => {
-      // -------------------------------
-      // ① 取得目前登入者（使用 Cookie）
-      // -------------------------------
-      let me = null;
-      try {
-        me = await api.auth.me();   // ←🔥 就是放這裡！
-      } catch (err) {
-        alert(toUserMessage(err, "無法取得登入狀態"));
+      function applyTitle() {
+        document.title = TITLE_MAP[location.pathname] || "Designer";
       }
 
-      if (!me) {
-        // 未登入 → 退回 login 頁
-        location.href = "/login.html";
-        return;
-      }
+      applyTitle();
+      window.addEventListener("popstate", applyTitle);
 
-      // 在畫面上顯示登入者名稱 + 角色
-      document.getElementById("accountName").textContent = me.username;
-      document.getElementById("accountRole").textContent = me.role === "admin" ? "系統管理員" : "一般使用者";
+      const _pushState = history.pushState;
+      history.pushState = function () {
+        _pushState.apply(history, arguments);
+        applyTitle();
+      };
 
-      // -------------------------------
-      // ② 你的其它頁面初始化程式碼
-      // -------------------------------
-      const params = new URLSearchParams(location.search);
-      const projectId = params.get("projectId");
-
-      if (projectId) {
-        try {
-          const plan = await api.stagePlan.get(projectId);
-          console.log("Stage Plan: ", plan);
-        } catch (err) {
-          alert(toUserMessage(err));
-        }
-      }
+      const _replaceState = history.replaceState;
+      history.replaceState = function () {
+        _replaceState.apply(history, arguments);
+        applyTitle();
+      };
     })();
-  </script> -->
-
-  <!-- 顯示版本 -->
-  <footer id="appVersion" 
-          style="font-size:12px;color:#999;text-align:center;padding:8px;opacity:0.7;">
-    version: 檢查中...
-  </footer>
-
-  <script type="module">
-  (async () => {
-    const el = document.getElementById("appVersion");
-
-    try {
-      const res = await fetch("/version");
-      if (!res.ok) throw new Error("fetch failed");
-
-      const v = await res.json();
-
-      // 只顯示 version
-      if (v.version) {
-        el.textContent = `version: ${v.version}`;
-      } else {
-        el.textContent = "version: unknown";
-      }
-
-    } catch (e) {
-      el.textContent = "version: unavailable";
-    }
-  })();
   </script>
 
 
+  <!-- 右下角版本徽章（不佔版面高度） -->
+  <div id="buildBadge" aria-hidden="true">
+    <span class="mono" id="buildVersion">version: —</span>
+  </div>
+
+  <!-- 上線版 -->
+  <!-- <script type="module">
+  (async () => {
+    const badge = document.getElementById("buildBadge");
+    const text  = document.getElementById("buildVersion");
+    if (!badge || !text) return;
+
+    let loaded = false;
+    let visible = false;
+
+    // ① 嘗試取得版本（但不顯示）
+    try {
+      const res = await fetch("/version");
+      if (!res.ok) throw new Error("fetch failed");
+      const v = await res.json();
+
+      if (v?.version) {
+        text.textContent = `version: ${v.version}`;
+        loaded = true;
+      } else {
+        text.textContent = "version: unknown";
+      }
+    } catch (e) {
+      text.textContent = "version: unavailable";
+    }
+
+    // ② Alt + Shift + V 切換顯示 / 隱藏
+    document.addEventListener("keydown", (e) => {
+      // 避免在輸入框內誤觸
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      // 關鍵組合：Alt + Shift + V
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+
+        // 沒成功載入版本就不顯示
+        if (!loaded) return;
+
+        visible = !visible;
+        badge.style.display = visible ? "flex" : "none";
+        badge.setAttribute("aria-hidden", String(!visible));
+      }
+    });
+  })();
+  </script> -->
+
+  <!-- 開發版（本機或無環境變數時的友善顯示） -->
+  <script type="module">
+  (async () => {
+    const badge = document.getElementById("buildBadge");
+    const text  = document.getElementById("buildVersion");
+    if (!badge || !text) return;
+
+    let loaded = false;
+    let visible = false;
+
+    const isLocal =
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1";
+
+    // ① 嘗試取得正式版本（正式環境）
+    if (!isLocal) {
+      try {
+        const res = await fetch("/version");
+        if (!res.ok) throw new Error("fetch failed");
+        const v = await res.json();
+
+        if (v?.version) {
+          text.textContent = `version: ${v.version}`;
+          loaded = true;
+        } else {
+          text.textContent = "version: unknown";
+        }
+      } catch (e) {
+        text.textContent = "version: unavailable";
+      }
+    }
+
+    // ② 本機 fallback（只在 localhost）
+    if (isLocal) {
+      text.textContent = "version: LOCAL-DEV";
+      loaded = true; // ⭐ 允許快捷鍵顯示
+    }
+
+    // ③ Alt + Shift + V 切換顯示
+    document.addEventListener("keydown", (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        if (!loaded) return;
+
+        visible = !visible;
+        badge.style.display = visible ? "flex" : "none";
+        badge.setAttribute("aria-hidden", String(!visible));
+      }
+    });
+  })();
+  </script>
 
 
 </body>

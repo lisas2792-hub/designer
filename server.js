@@ -1,7 +1,6 @@
 // server.js
 // ─────────────────────────────────────────────
 // 1) 環境變數集中
-//    上公網：保留；若不要 /config/env.js → 用 require('dotenv').config()
 // ─────────────────────────────────────────────
 const ENV = require("./config/env"); // { nodeEnv, isProd, PORT }
 
@@ -16,9 +15,11 @@ const cors = require("cors");
 const helmet = require("helmet");
 const path = require("path");
 const morgan = require("morgan");
+const fs = require("fs");
 const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
 const app = express();
+
 app.disable("x-powered-by"); // ✅ 上公網建議：隱藏框架標頭
 
 // 保險絲（避免未攔截錯誤讓進程結束）
@@ -28,6 +29,14 @@ process.on("unhandledRejection", (err) =>
 process.on("uncaughtException", (err) =>
   console.error("[uncaughtException]", err)
 );
+
+// 若設定的 OAUTH_TOKEN_PATH 放在 .tmp，先確保目錄存在
+try {
+  const tokenPath = process.env.OAUTH_TOKEN_PATH || "";
+  if (tokenPath.startsWith(".tmp")) {
+    fs.mkdirSync(".tmp", { recursive: true });
+  }
+} catch (_) {}
 
 // 🔧 DEBUG: 極早期煙霧測試，驗證這支 server.js 真的在跑（穩定後可移除）
 app.get("/__smoke", (_req, res) =>
@@ -151,22 +160,24 @@ app.use((req, res, next) => {
   next();
 });
 
-
 // CORS 白名單（允許已設定清單 + 所有 *.run.app 同區域網域）
-const raw = process.env.CORS_ORIGINS || "https://designer-app-909118568673.asia-east1.run.app,http://localhost:3000,http://127.0.0.1:3000";
-const allowed = raw.split(",").map(s => s.trim()).filter(Boolean);
+const raw =
+  process.env.CORS_ORIGINS ||
+  "https://designer-app-909118568673.asia-east1.run.app,http://localhost:3000,http://127.0.0.1:3000";
+const allowed = raw.split(",").map((s) => s.trim()).filter(Boolean);
 const runAppRe = /^https:\/\/[a-z0-9-]+\.run\.app$/i; // 允許 Cloud Run 服務網域
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);                     // 同源/直打允許
-    if (allowed.includes(origin)) return cb(null, true);    // 環境指定白名單
-    if (runAppRe.test(origin)) return cb(null, true);       // 任何 *.run.app
-    return cb(null, false);
-  },
-  credentials: true,
-}));
-
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // 同源/直打允許
+      if (allowed.includes(origin)) return cb(null, true); // 環境指定白名單
+      if (runAppRe.test(origin)) return cb(null, true); // 任何 *.run.app
+      return cb(null, false);
+    },
+    credentials: true,
+  })
+);
 
 // Helmet（CSP 保留；HSTS 僅在 prod/https）
 app.use(
@@ -174,12 +185,11 @@ app.use(
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], // 開發期允許 inline
+        "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
         "style-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-        // "img-src": ["'self'", "data:", "https://cdn.jsdelivr.net"],
       },
     },
-    hsts: ENV.isProd ? undefined : false, // 本機避免強制 https；上公網（https）請保留預設
+    hsts: ENV.isProd ? undefined : false,
   })
 );
 
@@ -193,11 +203,14 @@ app.use((req, _res, next) => {
 });
 
 // ─────────────────────────────────────────────
-// 9) 限流（全域 + 登入/註冊）
+// 9) 限流（全域 API + 登入/註冊）
 // ─────────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 100,
+
+  // ✅ 建議：先放寬，避免 SPA 重整/切換把自己鎖死
+  limit: ENV.isProd ? 300 : 1200,
+
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -205,14 +218,15 @@ const globalLimiter = rateLimit({
     code: "RATE_LIMIT_GLOBAL",
     message: "Too many requests. Please slow down.",
   },
+
+  // ✅ 用 originalUrl 才不會被 mount('/api') 影響
   skip: (req) =>
     req.method === "OPTIONS" ||
-    // 版本/健康檢查白名單：避免版本顯示被限流影響
-    req.path === "/version" ||
-    req.path === "/api/version" ||
-    req.path === "/api/health" ||
-    req.path === "/health" ||
-    req.path === "/__smoke",
+    req.originalUrl === "/api/version" ||
+    req.originalUrl === "/api/health" ||
+    req.originalUrl === "/api/__ready" ||
+    req.originalUrl === "/api/db/ping" ||
+    req.originalUrl === "/__smoke",
 });
 
 const loginLimiter = rateLimit({
@@ -232,7 +246,7 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60_000,
-  limit: ENV.isProd ? 3 : 3000, // ✅ 上公網：3；開發：放寬
+  limit: ENV.isProd ? 3 : 3000,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) =>
@@ -254,12 +268,11 @@ const registerLimiter = rateLimit({
   },
 });
 
-// 先保護整體（★ 必須在任何路由掛載之前）
-app.use(globalLimiter);
+// ✅ 只對 /api 限流（避免頁面/靜態資源也被限流造成重整崩壞）
+app.use("/api", globalLimiter);
 
 // ─────────────────────────────────────────────
-// 10) 公開健康檢查 / 就緒燈（無需登入）★ 新位置
-//     放在 requireAuth 之前，避免被攔截成 UNAUTHORIZED
+// 10) 公開健康檢查 / 就緒燈（無需登入）
 // ─────────────────────────────────────────────
 app.get("/api/__ready", (_req, res) => {
   res.json({
@@ -294,29 +307,20 @@ app.get("/api/db/ping", async (_req, res, next) => {
 });
 
 // ─────────────────────────────────────────────
-// 11) 版本資訊（不需登入）★ 你要看的重點
-//     - /version 與 /api/version 回傳相同內容（方便前端或監控）
-//     - VERSION / BUILD_ID / GIT_SHA 請在部署時注入（見本文末）
-//     - K_SERVICE / K_REVISION / X_GOOGLE_REGION 由 Cloud Run 自動提供
+// 11) 版本資訊（不需登入）
 // ─────────────────────────────────────────────
 function currentVersionPayload() {
-  const payload = {
+  return {
     ok: true,
-    version: process.env.VERSION || null,               // 例如 v20251126-134538（給人看）
-    build_id: process.env.BUILD_ID || null,            // 例如 20251126a（唯一追蹤）
-    git_sha: (process.env.GIT_SHA || "").slice(0, 7) || null, // 短 SHA，前端好讀
-
-    // Cloud Run 內建資訊
+    version: process.env.VERSION || null,
+    build_id: process.env.BUILD_ID || null,
+    git_sha: (process.env.GIT_SHA || "").slice(0, 7) || null,
     service: process.env.K_SERVICE || null,
     revision: process.env.K_REVISION || null,
     region: process.env.X_GOOGLE_REGION || null,
-
     now: new Date().toISOString(),
   };
-  return payload;
 }
-
-// 兩個路徑輸出相同內容
 app.get("/version", (_req, res) => res.json(currentVersionPayload()));
 app.get("/api/version", (_req, res) => res.json(currentVersionPayload()));
 
@@ -333,7 +337,7 @@ console.log("[MOUNT] /api/auth done");
 
 if (drivePublicRouter) {
   console.log("[MOUNT] /api/drive (publicRouter) ...");
-  app.use("/api/drive", drivePublicRouter);
+app.use("/api/drive", drivePublicRouter);
   console.log("[MOUNT] /api/drive done");
 } else {
   console.log("[MOUNT] /api/drive skipped (no publicRouter)");
@@ -344,18 +348,12 @@ console.log("[MOUNT] /__ops (requireAdmin) ...");
 app.use("/__ops", requireAdmin, opsRoutes);
 console.log("[MOUNT] /__ops done");
 
-// 與 /api 一樣需要 requireAuth
-console.log("[MOUNT] /api (stageupload protected router) ...");
-app.use("/api", requireAuth, require("./routes/stageupload").router);
-console.log("[MOUNT] /api stageupload done");
-
-// 其餘受保護 API（routes/index.js）
+// 其餘受保護 API
 console.log("[MOUNT] /api (requireAuth + apiRoutes) ...");
 app.use("/api", requireAuth, apiRoutes);
 console.log("[MOUNT] /api protected done");
 
-// （除錯用）無驗證探針（平行於受保護 API，用來排查 requireAuth 是否攔住）
-// 這個雖然掛在 /api 下，但會先經過 requireAuth；如果要完全不驗證，改路徑或搬到上面
+// （除錯用）無驗證探針（注意：仍會先過 requireAuth，這是你原本的行為）
 console.log("[MOUNT] /api (NO AUTH probe) ...");
 const expressProbe = require("express").Router();
 expressProbe.get("/__nopass-ping", (_req, res) =>
@@ -375,8 +373,7 @@ app.get("/register.html", (_req, res) =>
 app.get("/", (_req, res) => res.redirect("/login.html"));
 
 // ─────────────────────────────────────────────
-// 13) 診斷端點（可節流輸出，避免爆量）
-//    🔧 DEBUG: 之後穩定可註解
+// 13) 診斷端點
 // ─────────────────────────────────────────────
 app.get("/__routes", (_req, res) => {
   try {
@@ -386,10 +383,8 @@ app.get("/__routes", (_req, res) => {
     const join = (base, seg) => {
       if (!base) return seg || "";
       if (!seg) return base;
-      if (base.endsWith("/") && seg.startsWith("/"))
-        return base + seg.slice(1);
-      if (!base.endsWith("/") && !seg.startsWith("/"))
-        return base + "/" + seg;
+      if (base.endsWith("/") && seg.startsWith("/")) return base + seg.slice(1);
+      if (!base.endsWith("/") && !seg.startsWith("/")) return base + "/" + seg;
       return base + seg;
     };
     const pathFromRegexp = (re) => {
@@ -408,13 +403,11 @@ app.get("/__routes", (_req, res) => {
             .filter((m) => layer.route.methods[m])
             .map((m) => m.toUpperCase())
             .sort();
-          for (const p of routePaths)
-            results.push({ methods, path: join(prefix, p) });
+          for (const p of routePaths) results.push({ methods, path: join(prefix, p) });
           continue;
         }
         const handle = layer.handle;
-        const child =
-          handle && Array.isArray(handle.stack) ? handle.stack : null;
+        const child = handle && Array.isArray(handle.stack) ? handle.stack : null;
         if (child) {
           const mount = layer.path || pathFromRegexp(layer.regexp) || "";
           walk(child, join(prefix, mount));
@@ -447,43 +440,55 @@ app.get("/__routes", (_req, res) => {
       truncated: ROUTE_REGISTRY.length > MAX,
     });
   } catch (e) {
-    res
-      .status(500)
-      .json({ ok: false, error: "SERVER_ERROR", detail: String(e?.message || e) });
+    res.status(500).json({
+      ok: false,
+      error: "SERVER_ERROR",
+      detail: String(e?.message || e),
+    });
   }
 });
 
-// 完整登記簿（小心很長）— 🔧 DEBUG: 之後可註解
 app.get("/__routes_registry", (_req, res) => {
   res.json({ ok: true, total: ROUTE_REGISTRY.length, routes: ROUTE_REGISTRY });
 });
+
+// ─────────────────────────────────────────────
+// 同頁多路徑入口：/projects /reminders /password
+// ─────────────────────────────────────────────
+const HOME_HTML = path.join(PUBLIC_DIR, "home.html");
+function sendHomeHtml(_req, res) {
+  res.set("Cache-Control", "no-store");
+  return res.sendFile(HOME_HTML);
+}
+app.get("/projects", sendHomeHtml);
+app.get("/reminders", sendHomeHtml);
+app.get("/password", sendHomeHtml);
 
 // ─────────────────────────────────────────────
 // 14) 404 & 全域錯誤處理
 // ─────────────────────────────────────────────
 app.use((req, res) => {
   res.set("X-From-404", "server.js");
-  res
-    .status(404)
-    .json({ ok: false, message: "Not Found", path: req.originalUrl });
+  res.status(404).json({ ok: false, message: "Not Found", path: req.originalUrl });
 });
 
 app.use((err, req, res, _next) => {
   console.error("[UNCAUGHT ERROR]", req.method, req.originalUrl, err);
-  res
-    .status(err.status || 500)
-    .json({ ok: false, error: "SERVER_ERROR", detail: String(err?.message || err) });
+  res.status(err.status || 500).json({
+    ok: false,
+    error: "SERVER_ERROR",
+    detail: String(err?.message || err),
+  });
 });
 
 // ─────────────────────────────────────────────
-// 15) 啟動 & 啟動自檢（以登記簿為主，不再依賴私有屬性）
+// 15) 啟動
 // ─────────────────────────────────────────────
 app.listen(ENV.PORT, "0.0.0.0", () => {
   console.log(
     `API on http://0.0.0.0:${ENV.PORT} (env:${ENV.nodeEnv}) [build:${Date.now()}]`
   );
 
-  // 用登記簿輸出前 20 條掛載摘要（Express 4/5 都可靠）
   try {
     const list = ROUTE_REGISTRY.slice(0, 20).map(
       (r) => `${r.kind} ${r.path} [handlers:${r.handlers}]`
