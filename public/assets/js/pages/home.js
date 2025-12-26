@@ -1,18 +1,15 @@
 // ======================================================
-//  home.js v2025-12-12-routeviews-password
+//  home.js v2025-12-18-stable
 //  同頁三區塊切換 + URL 分離：/projects /reminders /password
 //  - 不重整頁面，靠 History API
 //  - 支援：直接輸入網址 / 重整 / Back Forward
-//  - 保留：離開專案前 dirty 確認
+//  - 離開專案前 dirty 確認（策略 B：仍然離開=放棄修改）
 // ======================================================
 
 import { api } from "../api.js";
 import { initPasswordFeature } from "./password.js";
 import { initProjectsFeature } from "./projects.js";
 
-// ------------------------------------------------------
-// 全域狀態
-// ------------------------------------------------------
 window.__ME__ = null;
 
 let passwordController = null;
@@ -21,9 +18,6 @@ let projectsController = null;
 let currentViewKey = "projects";
 let suppressNextPop = false;
 
-// ------------------------------------------------------
-// View / Title / Route 對照表
-// ------------------------------------------------------
 const views = {
   projects: document.getElementById("view-projects"),
   reminders: document.getElementById("view-reminders"),
@@ -42,7 +36,6 @@ const viewToPath = {
   password: "/password",
 };
 
-// 允許舊入口（例如 /home.html）或未知路徑 fallback
 function resolveViewKeyFromPath(pathname) {
   const p = (pathname || "/").replace(/\/+$/, "") || "/";
 
@@ -50,15 +43,13 @@ function resolveViewKeyFromPath(pathname) {
   if (p === "/reminders") return "reminders";
   if (p === "/password") return "password";
 
-  // 舊入口
   if (p === "/home.html" || p === "/home") return "projects";
-
-  // 其他未知：回 projects
   return "projects";
 }
 
 // ------------------------------------------------------
-// Dirty 保護：離開 projects 前確認
+// Dirty 保護：離開 projects 前確認（策略 B）
+// - 使用者按「仍然離開」：放棄修改（清 dirty + 重新載入）
 // ------------------------------------------------------
 async function confirmLeaveProjectsIfNeeded(nextKey) {
   if (currentViewKey !== "projects") return true;
@@ -68,47 +59,35 @@ async function confirmLeaveProjectsIfNeeded(nextKey) {
     const ok = await projectsController.confirmNavigateWhenDirty();
     if (!ok) return false;
 
-    // 使用者仍要離開 → 清掉 dirty & 重新載入專案
+    // ✅ 仍然離開：你要的「歸 0 + 消除警示 + 回到乾淨狀態」
     if (typeof projectsController.discardUnsavedChanges === "function") {
       await projectsController.discardUnsavedChanges({ refresh: true });
     }
   }
-
   return true;
 }
 
-// ------------------------------------------------------
-// 套用 view 顯示（不處理 history）
-// ------------------------------------------------------
 function applyView(key) {
   const safeKey = views[key] ? key : "projects";
   currentViewKey = safeKey;
 
-  // active 樣式
   document.querySelectorAll(".nav button").forEach((b) => b.classList.remove("active"));
   const activeBtn = document.querySelector(`.nav button[data-view="${safeKey}"]`);
   if (activeBtn) activeBtn.classList.add("active");
 
-  // 顯示/隱藏
   Object.values(views).forEach((v) => (v.style.display = "none"));
   views[safeKey].style.display = "";
 
-  // 標題
   const titleEl = document.getElementById("pageTitle");
   if (titleEl) titleEl.textContent = titleMap[safeKey] || "";
 
-  // 切到 password 時重置表單
   if (safeKey === "password" && passwordController && typeof passwordController.reset === "function") {
     passwordController.reset();
   }
 
-  // 給其他模組可選擇監聽（非必須）
   window.dispatchEvent(new CustomEvent("app:viewchange", { detail: { view: safeKey } }));
 }
 
-// ------------------------------------------------------
-// 導航：切 view + pushState/replaceState
-// ------------------------------------------------------
 async function navigateToView(nextKey, { replace = false } = {}) {
   const key = views[nextKey] ? nextKey : "projects";
 
@@ -125,10 +104,9 @@ async function navigateToView(nextKey, { replace = false } = {}) {
 }
 
 // ------------------------------------------------------
-// Boot：撈登入者 + 初始化模組 + 依 URL 決定顯示區塊
+// Boot
 // ------------------------------------------------------
 (async function boot() {
-  // ① 取得登入者
   try {
     const me = await api.auth.me();
     if (!me) throw new Error("未取得使用者資訊");
@@ -138,8 +116,7 @@ async function navigateToView(nextKey, { replace = false } = {}) {
     document.getElementById("accountName").textContent = me.username || me.name || "—";
 
     const roleCode = (me.role_code || me.role || "").toString().trim();
-    const roleLabel =
-      me.role_label || (roleCode === "admin" ? "系統管理員" : roleCode ? "一般會員" : "—");
+    const roleLabel = me.role_label || (roleCode === "admin" ? "系統管理員" : roleCode ? "一般會員" : "—");
 
     document.getElementById("accountRole").textContent = roleLabel;
   } catch (err) {
@@ -148,7 +125,6 @@ async function navigateToView(nextKey, { replace = false } = {}) {
     return;
   }
 
-  // ② 初始化模組
   try {
     projectsController = initProjectsFeature();
   } catch (err) {
@@ -165,14 +141,11 @@ async function navigateToView(nextKey, { replace = false } = {}) {
     console.warn("[home] initPasswordFeature 失敗或尚未實作：", err);
   }
 
-  // ③ 初始 view：依 URL（並把 /home.html 轉成 /projects）
   const initialKey = resolveViewKeyFromPath(location.pathname);
   await navigateToView(initialKey, { replace: true });
 })();
 
-// ------------------------------------------------------
-// Sidebar 點擊：改為 URL 導航（pushState）
-// ------------------------------------------------------
+// Sidebar click
 document.querySelectorAll(".nav button").forEach((btn) => {
   btn.addEventListener("click", async (ev) => {
     ev.preventDefault();
@@ -181,9 +154,7 @@ document.querySelectorAll(".nav button").forEach((btn) => {
   });
 });
 
-// ------------------------------------------------------
-// Back/Forward：依 URL 切換 view（popstate）
-// ------------------------------------------------------
+// Back/Forward
 window.addEventListener("popstate", async () => {
   if (suppressNextPop) return;
 
@@ -191,7 +162,6 @@ window.addEventListener("popstate", async () => {
 
   const ok = await confirmLeaveProjectsIfNeeded(nextKey);
   if (!ok) {
-    // 取消離開 → 把網址推回目前 view，避免停在錯誤 URL
     suppressNextPop = true;
     history.pushState({ view: currentViewKey }, "", viewToPath[currentViewKey] || "/projects");
     suppressNextPop = false;
@@ -201,15 +171,17 @@ window.addEventListener("popstate", async () => {
   applyView(nextKey);
 });
 
-// ------------------------------------------------------
-// 登出（維持你原本的 dirty 尊重邏輯）
-// ------------------------------------------------------
+// 登出（尊重 dirty；仍然離開=放棄修改）
 document.getElementById("logoutBtn").addEventListener("click", async (ev) => {
   ev.preventDefault();
 
   if (projectsController && typeof projectsController.confirmNavigateWhenDirty === "function") {
     const ok = await projectsController.confirmNavigateWhenDirty();
     if (!ok) return;
+
+    if (typeof projectsController.discardUnsavedChanges === "function") {
+      await projectsController.discardUnsavedChanges({ refresh: true });
+    }
   }
 
   try {

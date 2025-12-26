@@ -15,7 +15,7 @@
 .person-card {
   /* 控制 3×3 區的單格高度 & 間距（越小 → 卡片越矮） */
   --row: 46px;   /* 原 46 → 34：每格稍小，仍好點擊 */
-  --gap: 10px;    /* 原 10 → 6：格間距略小 */
+  --gap: 8px;    /* 原 10 → 6：格間距略小 */
 
   border: 1px solid #e5e7eb;
   border-radius: 14px;   /* 略小一點的圓角 */
@@ -163,3 +163,248 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
 #affairModal #af_submit { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
 #affairModal .modal-actions button:hover { opacity: .9; }
 @media (max-width: 520px) { #affairModal .modal-panel { width: 92vw; padding: 12px; } #affairModal .modal-body { grid-template-columns: 1fr; } }
+
+/* ===== SweetAlert2：事務詳情彈窗（Affair Detail Popup） ===== */
+.af-wrap{ padding:10px 6px 6px 6px; }
+
+.af-head{
+  position:relative;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:14px;
+}
+.af-title{
+  font-size:20px;
+  font-weight:800;
+  color:#111827;
+}
+
+/* 右上角 icon 區 */
+.af-actions{
+  position:absolute;
+  right:0;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;
+  gap:10px;
+}
+
+/* 局部覆寫：避免彈窗內的 .action-btn 太小或太大 */
+.af-actions .action-btn{
+  width:34px;
+  height:34px;
+  line-height:1;
+  font-size:16px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+}
+
+/* 內容區：左 label、右內容框 */
+.af-grid{
+  display:grid;
+  grid-template-columns:70px 1fr;
+  column-gap:14px;
+  row-gap:14px;
+  align-items:start;
+}
+.af-label{
+  font-size:15px;
+  font-weight:800;
+  color:#111827;
+  padding-top:6px;
+}
+.af-box{
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  background:#f8fafc;
+  padding:10px 12px;
+  color:#111827;
+  font-size:15px;
+  line-height:1.6;
+  text-align:center;
+}
+.af-box--content{
+  max-height:110px;
+  overflow:auto;
+  white-space:pre-wrap;
+}
+
+/* 編輯狀態：輸入框 */
+.af-input, .af-textarea{
+  width:100%;
+  border:1px solid #d1d5db;
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:15px;
+  outline:none;
+  background:#fff;
+  color:#111827;
+  box-sizing:border-box;
+}
+.af-textarea{
+  min-height:90px;
+  resize:vertical;
+  line-height:1.6;
+}
+
+/* 截止日期：正常排版 */
+.af-meta{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:10px;
+}
+.af-deadline{
+  font-size:13px;
+  color:#6b7280;
+}
+
+/* 底部關閉 */
+.af-foot{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:10px;
+}
+.af-close{
+  border:1px solid #e5e7eb;
+  background:#fff;
+  color:#111827;
+  border-radius:10px;
+  padding:6px 12px;
+  font-size:12px;
+  cursor:pointer;
+}
+.af-close:hover{ background:#f9fafb; }
+
+.af-hidden{ display:none !important; }
+
+/* =========================================================
+   Reminders 詳細頁：真正全寬版（解決你目前「卡在左邊第一欄」問題）
+   根因：
+   - #remindersGrid 目前套用 .person-grid（桌機 5 欄）
+   - 詳細頁 .rem-detail 被當成 grid item → 只能佔第一欄 → 右邊整片空白
+   解法：
+   - 當 #remindersGrid 內出現 .rem-detail 時：
+     1) 把 #remindersGrid 從 5 欄 grid 變成單欄（display:block）
+     2) 解除外層 .card 的 max-width / padding，讓內容撐滿
+     3) 詳細頁表格欄位變寬鬆，內容欄允許多行
+     4) 詳細頁「操作」按鈕做成和專案頁一致的 action-btn 外觀（避免灰底方塊）
+   ========================================================= */
+
+/* --- 只在支援 :has() 的瀏覽器啟用（Chrome/Edge/Safari 新版 OK） --- */
+@supports selector(#remindersGrid:has(.rem-detail)) {
+
+  /* 1) 最重要：詳細頁時，關掉 person-grid 的 5 欄 */
+  #remindersGrid.person-grid:has(.rem-detail){
+    display: block !important;     /* 不再是 grid，內容就能吃滿全寬 */
+    width: 100% !important;
+  }
+
+  /* 2) 詳細頁：解除外層 card 的限寬與 padding（避免看起來像小卡片） */
+  #view-reminders:has(.rem-detail) .card{
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  /* 3) 詳細頁容器撐滿 */
+  #remindersGrid:has(.rem-detail) .rem-detail{
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* 4) 詳細頁表格撐滿（外觀更像專案頁） */
+  #remindersGrid:has(.rem-detail) .rem-detail__table{
+    width: 100% !important;
+    max-width: none !important;
+    border-radius: 14px;
+    overflow: hidden; /* 讓圓角有效（列 hover 不會溢出） */
+  }
+
+  /* 5) 桌機欄位更寬鬆：案名/截止/操作加寬，不要擠 */
+  @media (min-width: 900px){
+    #remindersGrid:has(.rem-detail) .rem-detail__head,
+    #remindersGrid:has(.rem-detail) .rem-detail__row{
+      grid-template-columns: 280px 1fr 190px 140px; /* 案名 / 內容 / 截止 / 操作 */
+    }
+  }
+
+  /* 6) 內容欄允許多行顯示（你要「一列一列」但內容不要擠成省略號） */
+  #remindersGrid:has(.rem-detail) .rem-col--content{
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.55;
+  }
+
+  /* 7) 每列 padding 增加，整體更舒適 */
+  #remindersGrid:has(.rem-detail) .rem-detail__body .rem-detail__row{
+    padding: 12px 14px;
+  }
+
+  /* 8) 回列表不要卡在中間（你原本覺得怪的那個） */
+  #remindersGrid:has(.rem-detail) .rem-detail__top{
+    margin-top: 0;
+  }
+
+  /* =========================================================
+     9) 操作欄位（✏️ / ✅)
+     - 只影響 reminders 詳細頁，不影響 SweetAlert / 其他頁
+     ========================================================= */
+
+  /* 9-1) 先把按鈕的瀏覽器預設樣式清掉（最關鍵） */
+  #remindersGrid:has(.rem-detail) .rem-col--actions button{
+    all: unset;
+    box-sizing: border-box;
+  }
+
+  /* 9-2) 操作欄位對齊（像專案頁：靠右、固定間距） */
+  #remindersGrid:has(.rem-detail) .rem-col--actions{
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* 9-3) action-btn 外觀（與你專案頁一致的「白底＋灰框＋圓角＋hover陰影」） */
+  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn{
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #ffffff;
+
+    cursor: pointer;
+    user-select: none;
+    line-height: 1;
+    font-size: 16px;
+
+    transition: box-shadow .12s ease, transform .05s ease, background-color .12s ease, border-color .12s ease;
+  }
+
+  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:hover{
+    background: #f9fafb;
+    box-shadow: 0 4px 10px rgba(0,0,0,.06);
+    transform: translateY(-0.5px);
+  }
+
+  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:active{
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(0,0,0,.05);
+  }
+
+  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:focus-visible{
+    outline: 2px solid rgba(59,130,246,.25);
+    outline-offset: 2px;
+  }
+}

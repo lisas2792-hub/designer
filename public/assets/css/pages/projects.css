@@ -1,0 +1,394 @@
+/* ======================================================================
+ * projects.css（#view-projects 專案進度專用）
+ * - 獨立變數：避免依賴 app.css 的 --line/--muted
+ * - 修正：工具列按鈕跑版、灰線、狀態色
+ * - 修正：切 tab 上下跳動（legend 佔位 + 不重建表頭 + JS 保持 scrollTop）
+ * - ✅ unsavedNotice：平常不佔位；出現時往下推（不做定位浮層）
+ *
+ * ⚠️ 重要：不要在這支檔案對 main/body/html 設 overflow
+ *          寬度穩定（捲軸 gutter）請統一在 app.css 的 html 處理
+ *          否則會出現「兩條捲軸」。
+ * ====================================================================== */
+
+#view-projects{
+  /* --- Layout Vars --- */
+  --side-stage: 70px;
+  --side-id: 100px;
+  --side-name: 200px;
+  --cols: 8;
+  --action-col: 36px;
+  --cell-min: 110px;
+  --gap: 10px;
+  --radius: 12px;
+
+  /* --- 必須直接定義（避免自我引用） --- */
+  --line: #e5e7eb;
+  --muted: #6b7280;
+
+  /* --- 狀態色（專案專用） --- */
+  --ok-bg: #f3f4f6;
+  --ok-bd: #d1d5db;
+  --ok-fg: #111827;
+
+  --wait: #1d4ed8;
+  --design: #059669;
+  --build: #dc2626;
+
+  --warn-bg: #fff7ed;
+  --warn-bd: #f59e0b;
+  --warn-fg: #b45309;
+
+  --danger-bg: #fee2e2;
+  --danger-bd: #ef4444;
+  --danger-fg: #991b1b;
+
+  --done-bg: #ecfdf5;
+  --done-bd: #10b981;
+  --done-fg: #065f46;
+}
+
+/* =========================
+ * Tabs
+ * ========================= */
+#view-projects .tabs-row{
+  display:flex;
+  gap:8px;
+  align-items:flex-end;
+  border-bottom:1px solid var(--line);
+  padding:6px 0 0;
+  margin:0 0 10px;
+}
+
+#view-projects .tabs-row .tab{
+  padding:1px 15px;
+  border:none;
+  background:#ffffff;
+  cursor:pointer;
+  font-weight:700;
+  color:#000000;
+  font-size:18px;
+  border-radius:10px 10px 0 0;
+}
+
+#view-projects .tabs-row .tab[aria-selected="true"]{
+  color:#ffffff;
+  background:#000000;
+  border:1px solid var(--line);
+  border-bottom-color:#000000;
+}
+
+#view-projects .tabs-row .tab:focus{
+  outline:2px solid #c7d2fe;
+  outline-offset:2px;
+}
+
+/* =========================
+ * 工具列：legend + 右側按鈕
+ * ========================= */
+#view-projects .card-topbar{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:10px;
+}
+
+/* 左側 legend */
+#view-projects .legend{
+  display:flex;
+  gap:16px;
+  align-items:center;
+  font-size:13px;
+  color:var(--muted);
+  flex:1 1 auto;
+  min-width:0;
+  flex-wrap:wrap;
+}
+
+/* 圖例 pill */
+#view-projects .pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:4px 10px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:#fff;
+}
+
+#view-projects .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+#view-projects .dot.ok{ background:#9ca3af; }
+#view-projects .dot.warn{ background:#f59e0b; }
+#view-projects .dot.danger{ background:#ef4444; }
+#view-projects .dot.done{ background:#10b981; }
+
+/* 右側功能區 */
+#view-projects .function-buttons{
+  margin-left:auto;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  flex:0 0 auto;
+}
+
+/* 右側按鈕列 */
+#view-projects .function-buttons > div{
+  display:flex;
+  gap:8px;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+}
+
+/* ✅ 未儲存提示：平常不顯示；顯示時「往下推」 */
+#view-projects #unsavedNotice{
+  display:none;                 /* 平常不佔位 */
+  color:#b45309;
+  font-weight:600;
+  margin-bottom:4px;
+  max-width:520px;
+  text-align:right;
+
+  /* 避免太長換行導致高度突然變兩行而跳 */
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#view-projects #unsavedNotice.is-visible{
+  display:block;                /* 顯示時把下面往下推 */
+}
+
+/* 按鈕外觀 */
+#view-projects #addProjectBtn{
+  padding:6px 12px;
+  border:1px solid var(--primary);
+  background:#fff;
+  color:var(--primary);
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:600;
+}
+#view-projects #saveBtn{
+  padding:6px 12px;
+  border:1px solid var(--primary);
+  background:var(--primary);
+  color:#fff;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+@media (max-width: 640px){
+  #view-projects .card-topbar{ flex-wrap:wrap; }
+}
+
+/* =========================
+ * Grid Header
+ * ========================= */
+#view-projects .grid-header{
+  display:grid;
+  grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col));
+  column-gap: var(--gap);
+  align-items:center;
+  font-size:13px;
+  color:var(--muted);
+  padding:8px 12px;
+  border-bottom:1px solid var(--line);
+}
+
+/* 預設文字對齊 */
+#view-projects .grid-header div{ text-align:center; }
+#view-projects .grid-header div:nth-child(1),
+#view-projects .grid-header div:nth-child(2),
+#view-projects .grid-header div:nth-child(3){ text-align:left; }
+
+/* 你不想顯示任務表頭，但要保留欄位對齊 */
+#view-projects .grid-header .task-head{ visibility:hidden; }
+
+/* 右側三個動作欄位表頭：純占位 */
+#view-projects .grid-header .action-head{
+  background:transparent;
+  border:none;
+}
+
+/* =========================
+ * Project Row
+ * ========================= */
+#view-projects .project-row{
+  display:grid;
+  grid-template-columns:
+    var(--side-stage) var(--side-id) var(--side-name)
+    repeat(var(--cols), minmax(var(--cell-min), 1fr))
+    repeat(3, var(--action-col));
+  column-gap: var(--gap);
+  align-items:center;
+  padding:10px 12px;
+  border-bottom:1px dashed var(--line);
+}
+
+#view-projects .cell-id{ font-weight:600; }
+#view-projects .cell-name{
+  font-weight:600;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+#view-projects .cell-stage select{
+  width:100%;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  font-size:14px;
+}
+
+/* 已完成 badge（你的 JS 在 done/all 會 innerHTML 替換成這個） */
+#view-projects .cell-stage .badge-done{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:35px;
+  border-radius: var(--radius);
+  border:1px dashed var(--done-bd);
+  background: var(--done-bg);
+  color: var(--done-fg);
+  font-weight:700;
+  font-size:14px;
+}
+
+/* 任務格 */
+#view-projects .task-cell{
+  height:44px;
+  border-radius: var(--radius);
+  border:1px dashed var(--ok-bd);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:14px;
+  font-weight:600;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+#view-projects .task-cell:hover{
+  transform: translateY(-1px);
+  box-shadow:0 4px 12px rgba(0,0,0,.06);
+}
+#view-projects .task-cell[data-state="warn"]{
+  background: var(--warn-bg);
+  border-color: var(--warn-bd);
+  color: var(--warn-fg);
+}
+#view-projects .task-cell[data-state="danger"]{
+  background: var(--danger-bg);
+  border-color: var(--danger-bd);
+  color: var(--danger-fg);
+}
+#view-projects .task-cell[data-state="done"]{
+  background: var(--done-bg);
+  border-color: var(--done-bd);
+  color: var(--done-fg);
+}
+
+/* 列顏色 by stage */
+#view-projects .status-waiting .cell-id,
+#view-projects .status-waiting .cell-name{ color: var(--wait); }
+#view-projects .status-design  .cell-id,
+#view-projects .status-design  .cell-name{ color: var(--design); }
+#view-projects .status-build   .cell-id,
+#view-projects .status-build   .cell-name{ color: var(--build); }
+#view-projects .is-done .cell-id,
+#view-projects .is-done .cell-name{ color:#000 !important; }
+
+/* 動作按鈕 */
+#view-projects .action-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height:32px;
+  width:32px;
+  border-radius:8px;
+  border:1px solid var(--ok-bd);
+  background:#fff;
+  cursor:pointer;
+  transition: transform .05s ease, box-shadow .2s ease, background .2s ease;
+  font-size:18px;
+  line-height:1;
+  padding:0;
+}
+#view-projects .action-btn:hover{ box-shadow:0 2px 6px rgba(0,0,0,.08); }
+#view-projects .action-btn:active{ transform: translateY(1px); }
+#view-projects .action-btn[disabled]{ opacity:.5; pointer-events:none; }
+
+/* Modal 送出按鈕（scope 避免影響其他頁） */
+#view-projects #f_submit{
+  background:var(--primary);
+  color:#fff;
+  border:1px solid var(--primary);
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* =========================================================
+ * 切 tab 不跳：legend 在 done/all 隱形但佔位
+ * ========================================================= */
+#view-projects #legendBar{
+  min-height: 34px; /* 你可依視覺調 32~40 */
+}
+#view-projects #legendBar.is-hidden{
+  visibility:hidden;
+  pointer-events:none;
+}
+
+/* =========================
+ * Mobile: 讓 8 階段完整保留，採用「橫向滑動」
+ * ========================= */
+@media (max-width: 900px){
+
+  /* 1) 卡片外層不要把橫向滑動剪掉 */
+  #view-projects .card{
+    overflow: visible;
+  }
+
+  /* 2) 給表格一個「可橫向滑動的容器」：直接作用在 projectsGrid */
+  #view-projects #projectsGrid{
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+
+    /* 視覺：左右滑的區塊留一點底部空間 */
+    padding-bottom: 8px;
+  }
+
+  /* 3) 讓表頭跟每一列有固定最小寬度，確保 8 階段不被擠爛 */
+  #view-projects .grid-header,
+  #view-projects .project-row{
+    min-width: 1100px; /* 可依你的欄寬微調：1000~1400 之間 */
+  }
+
+  /* 4) 手機上縮小欄寬（可選，但建議） */
+  #view-projects{
+    --side-stage: 64px;
+    --side-id: 88px;
+    --side-name: 160px;
+    --cell-min: 96px;
+    --gap: 8px;
+    --action-col: 34px;
+  }
+
+  /* 5) 避免 legend/按鈕擠爆：允許換行（你目前 button 列是 nowrap） */
+  #view-projects .function-buttons > div{
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  /* 6) 提示文字若過長，手機可以換行（你目前是 nowrap） */
+  #view-projects #unsavedNotice{
+    white-space: normal;
+    max-width: 100%;
+  }
+}

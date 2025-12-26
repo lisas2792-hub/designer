@@ -1,276 +1,350 @@
-:root{
-  /* —— 全站主題色 —— */
-  --bg:#f6f7f9; --card:#ffffff; --text:#1f2937; --muted:#e0e7ff; --primary:#0B1746; --border:#3152be;
+/* ======================================================================
+ * app.css（共用樣式，Production 可用）
+ * - 主題變數、reset、Sidebar+Main 版面骨架
+ * - 共用元件：card / modal / buttons / build badge / Upload modal
+ *
+ * ✅ 本版目標：
+ * 1) 桌機：永遠只有 .main 捲動，且永遠顯示垂直捲軸（overflow-y: scroll）
+ *    → 有無可捲內容都一致，避免 topbar 在狀態切換時「上下厚度跳動」
+ * 2) topbar：鎖死高度（flex:0 0 60px + min-height）
+ * 3) 手機：改回 html/body 捲動（解掉 sidebar 變成文流後「不能滑動」）
+ * ====================================================================== */
 
-  /* —— 版面變數：統一控管側欄寬度（右側 main 也會跟著算） —— */
+/* =========================
+ * 1) 全站變數（主題/版面）
+ * ========================= */
+:root{
+  --bg:#f6f7f9;
+  --card:#ffffff;
+  --text:#1f2937;
+  --muted:#6b7280;
+
+  --primary:#0B1746;
+  --border:#3152be;
+
   --sidebar-w: 260px;
+
+  --line: #e5e7eb;
+
+  --warn-bg:   #fff7ed;
+  --warn-bd:   #f59e0b;
+  --warn-fg:   #b45309;
+
+  --danger-bg: #fee2e2;
+  --danger-bd: #ef4444;
+  --danger-fg: #991b1b;
+
+  --done-bg:   #ecfdf5;
+  --done-bd:   #10b981;
+  --done-fg:   #065f46;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
+/* =========================
+ * 2) Reset / Root Scroll Policy（桌機策略）
+ * ========================= */
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+
+html{
+  overflow:hidden; /* ✅ 桌機：不讓 html 捲 */
+}
+
 body{
   margin:0;
   background:var(--bg);
   color:var(--text);
   font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji";
-  /* 讓整頁不要跟著捲動，僅右側主內容捲動 */
   min-height:100dvh;
-  overflow:hidden;
+
+  overflow:hidden; /* ✅ 桌機：不讓 body 捲 → 杜絕第二條垂直捲軸 */
+
+  /* ✅ 防止水平溢出造成第二條水平捲軸 */
+  overflow-x: clip;
 }
 
-/* ------------------------ */
-/* 版面骨架：Sidebar + Main */
-/* ------------------------ */
+/* fallback：不支援 overflow-x:clip 時 */
+@supports not (overflow-x: clip){
+  body{ overflow-x:hidden; }
+}
 
-/* 原本是雙欄 Grid；因左側改成 position:fixed，這裡改回 block 較穩定 */
+/* 全站保險：避免圖片/表格等超寬把畫面撐出水平捲軸 */
+img, video, canvas, svg{
+  max-width:100%;
+  height:auto;
+}
+
+/* =========================
+ * 3) 版面骨架：Sidebar + Main
+ * ========================= */
 .app{
-  /* 原：display:grid; grid-template-columns:260px 1fr; min-height:100vh */
-  display:block;          /* ✅ 避免 grid 與 fixed 併用造成錯位 */
+  display:block;
   min-height:100vh;
 }
 
-/* ===== Sidebar 左側區塊（固定住） ===== */
+/* Sidebar 固定 */
 .sidebar{
   background:var(--primary);
-  display:flex; flex-direction:column;
+  display:flex;
+  flex-direction:column;
   color:#fff;
 
-  /*  固定在左側，永遠可見；自身超出時才在側欄內捲動 */
-  position:fixed; left:0; top:0; bottom:0;
+  position:fixed;
+  left:0; top:0; bottom:0;
   width:var(--sidebar-w);
-  overflow:auto;
-  z-index:20; /* 確保不被右側內容覆蓋 */
+
+  overflow:auto; /* Sidebar 自己可捲 */
+  z-index:20;
 }
-.account{padding:20px 16px;border-bottom:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:space-between}
-.account .name{font-weight:700;font-size:30px}
-.account .role{color:rgba(255,255,255,.8);font-size:12px;margin-top:4px}
-.logout-btn{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.6);background:transparent;cursor:pointer;font-size:13px;color:#fff}
 
-.nav{padding:0;margin:0;list-style:none;flex:1;display:flex;flex-direction:column}
-.nav li{margin:0}
-.nav button{width:100%;font-size:15px;text-align:left;padding:14px;margin:0;border:none;border-bottom:1px solid rgba(255,255,255,.2);background:#fff;color:#1f2937;cursor:pointer;transition:.15s ease}
-.nav button:hover{background:#f3f4f6}
-.nav button.active{background:#e0e7ff;color:#1e3a8a;font-weight:600;font-size:18px}
+.account{
+  padding:20px 16px;
+  border-bottom:1px solid rgba(255,255,255,.2);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.account .name{ font-weight:700; font-size:30px; }
+.account .role{ color:rgba(255,255,255,.8); font-size:12px; margin-top:4px; }
 
-/* ===== Main 右側區塊（只捲這裡） ===== */
+.logout-btn{
+  padding:6px 10px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.6);
+  background:transparent;
+  cursor:pointer;
+  font-size:13px;
+  color:#fff;
+}
+
+.nav{
+  padding:0;
+  margin:0;
+  list-style:none;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+}
+.nav li{ margin:0; }
+.nav button{
+  width:100%;
+  font-size:15px;
+  text-align:left;
+  padding:14px;
+  margin:0;
+  border:none;
+  border-bottom:1px solid rgba(255,255,255,.2);
+  background:#fff;
+  color:#1f2937;
+  cursor:pointer;
+  transition:.15s ease;
+}
+.nav button:hover{ background:#f3f4f6; }
+.nav button.active{
+  background:#e0e7ff;
+  color:#1e3a8a;
+  font-weight:600;
+  font-size:18px;
+}
+
+/*
+ * ✅ Main：桌機唯一的頁面捲動容器
+ * - overflow-y: scroll：永遠顯示垂直捲軸（只是不一定能捲）
+ * - min-width:0：避免 flex 內容計算造成不必要的重排
+ */
 .main{
-  display:flex; flex-direction:column;
+  display:flex;
+  flex-direction:column;
 
-  /* ✅ 讓主內容避開固定的側欄寬度，並自己捲動 */
   margin-left:var(--sidebar-w);
-  width:calc(100vw - var(--sidebar-w));
+  width:auto;
+
   height:100dvh;
-  overflow:auto;
+
+  overflow-y: scroll;
+  overflow-x:hidden;
+
   -webkit-overflow-scrolling:touch;
+
+  min-width:0;
 }
 
+/* Topbar（白色最上條） */
 .topbar{
-  height:60px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 20px;border-bottom:1px solid #e5e7eb;background:#fff;
-  position:sticky;top:0;
-}
-.topbar .title{font-weight:700;font-size:25px;}
-.content{padding:24px;}
+  height:60px;
+  min-height:60px;     /* ✅ 保險：避免被壓縮 */
+  flex:0 0 60px;       /* ✅ 鎖死在 flex column 裡的高度 */
+  box-sizing:border-box;
 
-/* 卡片共用樣式 */
-.card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:18px;box-shadow:0 6px 20px rgba(0,0,0,.04)}
-.grid{display:grid;gap:16px}
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 20px;
 
-/* ===== 專案進度內的變數 ===== */
-:root{
-  --side-stage: 70px;  /* 階段欄寬 */
-  --side-id: 100px;    /* 編號欄寬 */
-  --side-name: 200px;  /* 案名欄寬 */
-  --cols: 8;           /* 固定 8 個步驟 */
-  --action-col: 36px;  /* 每個圖示欄寬 */
-  --cell-min: 110px;   /* 每格最小寬度 */
-  --gap: 10px;
-
-  /* 顏色相關 */
-  --line: #e5e7eb;
-  --muted: #6b7280;
-  --ok-bg: #f3f4f6; --ok-bd: #d1d5db; --ok-fg: #111827;
-  --wait: #1d4ed8; --design: #059669; --build: #dc2626;
-  --warn-bg: #fff7ed; --warn-bd: #f59e0b; --warn-fg: #b45309;         /* 黃燈 */
-  --danger-bg: #fee2e2; --danger-bd: #ef4444; --danger-fg: #991b1b;   /* 紅燈 */
-  --done-bg: #ecfdf5; --done-bd: #10b981; --done-fg: #065f46;         /* 綠燈 */
-  --shadow: 0 6px 20px rgba(0,0,0,.08); --radius: 12px;
-}
-
-/* === 頁簽獨立一列（不跟 legend 同列） === */
-.tabs-row{
-  display:flex; gap:8px; align-items:flex-end;
   border-bottom:1px solid var(--line);
-  padding:6px 0 0; margin:0 0 10px;
+  background:#fff;
+
+  position:sticky;
+  top:0;
+  z-index:10;
+
+  width:100%;
 }
-.tabs-row .tab{
-  padding:1px 15px; border:none; background:#ffffff; cursor:pointer;
-  font-weight:700; color:#000000; font-size:18px; border-radius:10px 10px 0 0;
+
+/* 統一標題大小 */
+.topbar .title,
+.topbar #pageTitle{
+  margin:0;
+  font-weight:700;
+  font-size:25px;
+  line-height:1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
-.tabs-row .tab[aria-selected="true"]{
-  color:#ffffff;
-  background:#000000;
+
+/* 主要內容區 */
+.content{
+  padding:24px;
+  max-width:100%;
+}
+
+/* =========================
+ * 4) 共用元件：Card / Grid
+ * ========================= */
+.card{
+  background:var(--card);
   border:1px solid var(--line);
-  border-bottom-color:#000000; /* 與內容相連的經典 Tab 外觀 */
+  border-radius:14px;
+  padding:18px;
+  box-shadow:0 6px 20px rgba(0,0,0,.04);
+  max-width:100%;
 }
-.tabs-row .tab:focus{ outline:2px solid #c7d2fe; outline-offset:2px; }
+.grid{ display:grid; gap:16px; }
 
-/* ===== 表頭（包含 3 + 8 + 3 欄） ===== */
-.grid-header{
-  display:grid;
-  grid-template-columns:
-    var(--side-stage) var(--side-id) var(--side-name)
-    repeat(var(--cols), minmax(var(--cell-min), 1fr))
-    repeat(3, var(--action-col)); /* 新增 3 欄 */
-  column-gap: var(--gap);
+/* =========================
+ * 5) 共用 Button 元件
+ * ========================= */
+.btn{
+  appearance:none;
+  -webkit-appearance:none;
+  display:inline-flex;
   align-items:center;
-  font-size:13px; color:var(--muted);
-  padding: 8px 12px; border-bottom:1px solid var(--line);
+  justify-content:center;
+  gap:8px;
+
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid #d1d5db;
+  background:#fff;
+  color:#111827;
+
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  user-select:none;
+
+  transition: background-color .15s ease, color .15s ease,
+              border-color .15s ease, box-shadow .15s ease,
+              transform .05s ease;
 }
-.grid-header div{ text-align:center; }
-.grid-header div:nth-child(1),
-.grid-header div:nth-child(2),
-.grid-header div:nth-child(3){ text-align:left; }
-.grid-header .action-head{ background:transparent; border:none; }
+.btn:hover{ box-shadow:0 4px 10px rgba(0,0,0,.06); }
+.btn:active{ transform:translateY(1px); box-shadow:0 2px 6px rgba(0,0,0,.05); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; transform:none; }
 
-/* ===== 每一列（包含 階段 + 8 + 3 欄） ===== */
-.project-row{
-  display:grid;
-  grid-template-columns:
-    var(--side-stage) var(--side-id) var(--side-name)
-    repeat(var(--cols), minmax(var(--cell-min), 1fr))
-    repeat(3, var(--action-col)); /* 新增 3 欄 */
-  column-gap: var(--gap);
-  align-items:center;
-  padding: 10px 12px; border-bottom:1px dashed var(--line);
+.btn-primary{
+  background:var(--primary);
+  border-color:var(--primary);
+  color:#fff;
+  font-weight:600;
 }
+.btn-primary:hover{ opacity:.92; }
 
-.cell-id{ font-weight:600; }
-.cell-name{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cell-stage select{
-  width: 100%; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:14px;
+.btn-outline{
+  background:#fff;
+  border-color:var(--primary);
+  color:var(--primary);
+  font-weight:600;
 }
-
-/* 已完成頁簽用：在「階段」欄顯示的固定內容 */
-.cell-stage .badge-done{
-  display:flex; align-items:center; justify-content:center;
-  height:35px; border-radius: var(--radius);
-  border:1px dashed var(--done-bd);
-  background: var(--done-bg);
-  color: var(--done-fg);
-  font-weight:700; font-size:14px;
-}
-
-/* ===== 任務格子（紅 / 黃 / 綠 燈樣式齊全） ===== */
-.task-cell{
-  height: 44px; border-radius: var(--radius);
-  border:1px dashed var(--ok-bd); background: var(--ok-bg); color: var(--ok-fg);
-  display:flex; align-items:center; justify-content:center;
-  font-size:14px; font-weight:600;
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-.task-cell:hover{ transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
-.task-cell[data-state="warn"]{ background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-fg); }
-.task-cell[data-state="danger"]{ background: var(--danger-bg); border-color: var(--danger-bd); color: var(--danger-fg); }
-.task-cell[data-state="done"]{ background: var(--done-bg); border-color: var(--done-bd); color: var(--done-fg); }
-
-/* ===== 列顏色 by stage ===== */
-.status-waiting .cell-id, .status-waiting .cell-name{ color: var(--wait); }
-.status-design  .cell-id, .status-design  .cell-name{ color: var(--design); }
-.status-build   .cell-id, .status-build   .cell-name{ color: var(--build); }
-.is-done        .cell-id, .is-done        .cell-name{ color: #000 !important;}
-
-/* ===== 工具列 & 圖例（紅黃綠燈） ===== */
-.card-topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:10px; }
-.legend{ display:flex; gap:16px; align-items:center; font-size:13px; color:var(--muted); }
-.function-buttons{ display:flex; gap:10px; margin-left:auto; }
-.pill{ display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; }
-.dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
-.dot.ok{ background:#9ca3af; }       /* 一般 */
-.dot.warn{ background:#f59e0b; }     /* 黃燈 */
-.dot.danger{ background:#ef4444; }   /* 紅燈 */
-.dot.done{ background:#10b981; }     /* 綠燈 */
-
-@media (max-width: 640px){
-  .card-topbar{ flex-wrap:wrap; }
-  .function-buttons{ margin-left:0; }
+.btn-outline:hover{
+  background:var(--primary);
+  color:#fff;
+  border-color:var(--primary);
 }
 
-/* Emoji 動作按鈕樣式 */
-.action-btn{
-  display:flex;align-items:center;justify-content:center;
-  height:32px;width:32px;border-radius:8px;
-  border:1px solid var(--ok-bd, #d1d5db);
-  background:#fff;cursor:pointer;
-  transition: transform .05s ease, box-shadow .2s ease, background .2s ease;
-  font-size:18px; line-height:1; padding:0; /* 讓 emoji 置中 */
+.btn-muted{
+  background:#fff;
+  border-color:#d1d5db;
+  color:#111827;
 }
-.action-btn:hover{ box-shadow:0 2px 6px rgba(0,0,0,.08) }
-.action-btn:active{ transform: translateY(1px) }
-.action-btn[disabled]{ opacity:.5; pointer-events:none }
 
-/* Modal 樣式 */
+/* =========================
+ * 6) 共用 Modal
+ * ========================= */
 .modal-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.45);
-  display:none;align-items:center;justify-content:center;z-index:1000;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.45);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
 }
 .modal{
-  background:#fff;width:560px;max-width:95vw;border-radius:14px;
-  box-shadow:0 10px 30px rgba(0,0,0,.18);padding:18px 18px 16px;
+  background:#fff;
+  width:560px;
+  max-width:95vw;
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);
+  padding:18px 18px 16px;
   animation:modalIn .15s ease-out;
 }
-.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.modal-title{font-weight:700;font-size:18px;margin:0}
-.modal-close{border:none;background:transparent;font-size:24px;cursor:pointer;line-height:1}
-.modal-body{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.modal-actions{grid-column:1 / -1;display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
-@keyframes modalIn{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
-.modal input,.modal select{
-  width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:10px;font-size:14px
-}
-#f_due_preview{grid-column:1 / -1;font-size:13px;color:#6b7280;margin-top:4px}
+.modal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.modal-title{ font-weight:700; font-size:18px; margin:0; }
+.modal-close{ border:none; background:transparent; font-size:24px; cursor:pointer; line-height:1; }
 
-/* 頁簽都有階段 編號 案名 */
-.grid-header,
-.grid-header.mode-default,
-.grid-header.mode-done{
-  display:grid;
-  grid-template-columns:
-    var(--side-stage) var(--side-id) var(--side-name)
-    repeat(var(--cols), minmax(var(--cell-min), 1fr))
-    repeat(3, var(--action-col));
-}
-.project-row,
-.project-row.mode-default,
-.project-row.mode-done{
-  display:grid;
-  grid-template-columns:
-    var(--side-stage) var(--side-id) var(--side-name)
-    repeat(var(--cols), minmax(var(--cell-min), 1fr))
-    repeat(3, var(--action-col));
+.modal-body{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.modal-actions{ grid-column:1 / -1; display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
+
+@keyframes modalIn{
+  from{ opacity:0; transform:translateY(4px) scale(.98); }
+  to{ opacity:1; transform:translateY(0) scale(1); }
 }
 
+.modal input,
+.modal select,
+.modal textarea{
+  width:100%;
+  padding:8px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  font-size:14px;
+  box-sizing:border-box;
+  background:#fff;
+}
 
-/* ===============================
-   版本徽章（右下角）— 半透明顯示
-   - 不佔版面
-   - 不影響捲動
-   - JS 成功後才顯示（display:none 保留）
-   =============================== */
+#f_due_preview{
+  grid-column:1 / -1;
+  font-size:13px;
+  color:#6b7280;
+  margin-top:4px;
+}
+
+/* =========================
+ * 7) 版本徽章（右下角）
+ * ========================= */
 #buildBadge{
   position: fixed;
   right: 16px;
   bottom: 12px;
   z-index: 60;
 
-  display: none;                 /* JS 取得版本成功後再顯示 */
+  display: none;
   align-items: center;
   gap: 8px;
 
   padding: 6px 10px;
   border-radius: 10px;
 
-  /* 半透明毛玻璃效果 */
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -282,38 +356,115 @@ body{
   line-height: 1;
   color: rgba(17, 24, 39, 0.65);
 
-  transition: 
-    opacity .2s ease,
-    box-shadow .2s ease,
-    background-color .2s ease;
+  transition: opacity .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
-
-/* 滑鼠移上來時稍微清楚一點（不搶畫面） */
 #buildBadge:hover{
   background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 6px 14px rgba(0,0,0,.12);
+  box-shadow:0 6px 14px rgba(0,0,0,.12);
   color: rgba(17, 24, 39, 0.9);
 }
-
-/* 分隔線也淡化 */
-#buildBadge .sep{
-  width: 1px;
-  height: 12px;
-  background: rgba(0,0,0,0.12);
-}
-
-/* 版本字體（等寬） */
+#buildBadge .sep{ width:1px; height:12px; background: rgba(0,0,0,0.12); }
 #buildBadge .mono{
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   color: rgba(55, 65, 81, 0.75);
 }
+#buildBadge a{ color: rgba(37, 99, 235, 0.75); text-decoration:none; }
+#buildBadge a:hover{ text-decoration:underline; }
 
-/* 連結（如果你之後要放 commit link） */
-#buildBadge a{
-  color: rgba(37, 99, 235, 0.75);
-  text-decoration: none;
+/* =========================
+ * 8) Sidebar Logo 微調（共用）
+ * ========================= */
+.sidebar .logo-box{
+  width:100%;
+  padding:10px 15px;
+  margin-bottom:0;
+  text-align:center;
 }
-#buildBadge a:hover{
-  text-decoration: underline;
+.sidebar .account{
+  margin-top:0 !important;
+  padding-top:0 !important;
+}
+.sidebar .logo-box img{
+  width:100%;
+  max-width:300px;
+  filter: invert(1);
 }
 
+/* =========================
+ * 9) 上傳 Upload Modal（共用）
+ * ========================= */
+#uploadModal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.35);
+  align-items:center;
+  justify-content:center;
+  z-index:2000;
+}
+#uploadModal > div{
+  background:#fff;
+  padding:16px;
+  width:360px;
+  border-radius:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.2);
+}
+#uploadModal h3{ margin-top:0; }
+#uploadHint{
+  font-size:14px;
+  color:#666;
+  margin:6px 0 12px;
+}
+#uploadModal .btn-row,
+#uploadModal > div > div{
+  display:flex;
+  gap:8px;
+}
+#chooseFileBtn,
+#cancelUploadBtn{
+  padding:8px 12px;
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  background:#fff;
+  cursor:pointer;
+}
+#uploadStatus{
+  margin-top:12px;
+  font-size:13px;
+  color:#333;
+}
+
+/* =========================
+ * 10) 響應式（手機可滑動版）
+ * - 桌機：html/body hidden、只讓 .main 捲
+ * - 手機：改成 html/body 捲動，否則 sidebar 變文流後會「不能滑」
+ * ========================= */
+@media (max-width: 900px){
+  html, body{
+    height:auto;
+    overflow:auto;      /* ✅ 允許整頁滑動 */
+  }
+
+  .sidebar{
+    position:static;
+    width:100%;
+    height:auto;
+    overflow:visible;
+  }
+
+  .main{
+    margin-left:0;
+    height:auto;
+    overflow:visible;   /* ✅ 不再當唯一捲動容器（交給 body 捲） */
+  }
+
+  .topbar{
+    position:sticky;    /* 仍可 sticky（跟著 body scroll） */
+    top:0;
+  }
+}
+
+@media (max-width: 640px){
+  .content{ padding:16px; }
+  .topbar{ padding:0 14px; }
+}

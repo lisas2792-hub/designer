@@ -1,59 +1,378 @@
 // public/assets/js/pages/reminders.js
-// 事務提醒（以人為單位）— 清單 + 新增 Modal + 從資料庫載入與顏色規則
+// ============================================================================
+// 事務提醒（以人為單位）— 總覽（3×3）+ 新增 Modal + 詳細頁（整頁橫向列表）
 //
-// 規格：
-// - 卡片固定大小（依你 CSS），每人最多顯示 3×3 = 9 條「案名」；若無案名顯示「其他」
-// - 卡片標題下方顯示「未完成：X」= 該人 open 事務數（從 DB 算）
-// - 新增寫入 DB（POST /api/reminders），載入用 GET /api/reminders?status=open
-// - 顏色：預設橘色（warn）；若「已逾一半期限」→ 紅色（danger）
-// - 期限天數必須 ≥ 1（沒有 0）
+// 需求（你目前確認版）：
+// [總覽 /reminders]
+// - 每人卡片固定大小（依你的 CSS）
+// - 每人最多顯示 3×3 = 9 條；無案名顯示「其他」
+// - 顯示「未完成：X」
+// - 點「帳號(看起來像原本文字，不像按鈕)」→ 進詳細頁 /reminders?user=<id>
 //
-// 依賴：/assets/js/api.js（api、toUserMessage）與你現有的 CSS（app.css + reminders.css）
+// [詳細 /reminders?user=<id>]
+// - 進去後「直接列整個頁面」，不包在 card、不要小小一塊
+// - 每個事務一列（橫向）：案名 / 內容 / 截止日期 / 操作(編輯、完成)
+// - 沒案名顯示：----
+// - 頁首顯示 username（不抓 display_name）
+// - 右側操作 icon 在最後一欄（像 projects 那種）
+//
+// 互動：
+// - 點總覽格子 → SweetAlert2 詳情彈窗（可編輯/完成）
+// - 詳細頁：點列本身 → 開彈窗；點「完成」可直接完成；點「編輯」開彈窗
+//
+// 依賴：
+// - /assets/js/api.js（api、toUserMessage）
+// - SweetAlert2：home.html 載入 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+//
+// 注意：
+// - 詳細頁的排版「跑版」通常是因為缺少專用 CSS；本版會在 JS 中「注入一段 scoped CSS」
+//   (只作用在 .rem-detail 容器內) 以避免影響你其他頁面與既有 reminders.css。
+// ============================================================================
 
 import { api, toUserMessage } from "../api.js";
 
-const MAX_VISIBLE = 9; // 每人最多顯示 9 條
+const MAX_VISIBLE = 9; // 總覽每人最多顯示 9 條（3×3）
 
 let loadedOnce = false;
-let rendering = false;     // ✅ 防止重複並發載入
-let cachedPersons = [];    // [{id, username, display_name, ...}]
-let cachedReminders = [];  // 從 DB 載入的 open 事務列
+let rendering = false;
+let cachedPersons = [];     // 人員清單快取
+let cachedReminders = [];   // open reminders 快取
 
-/* ------------------ 共用小工具 ------------------ */
+// ----------------------------------------------------------------------------
+// 安全 escape：避免 XSS
+// ----------------------------------------------------------------------------
 function esc(s) {
   return String(s ?? "").replace(/[<>&"']/g, (c) =>
     ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c] || "")
   );
 }
+
+// ----------------------------------------------------------------------------
+// 日期/顏色計算
+// ----------------------------------------------------------------------------
 function nowTs() { return Date.now(); }
+
 function daysBetweenUTC(startIso, endMs = nowTs()) {
   // 以日期為單位計算（含當天算第 1 天）
   const t0 = new Date(startIso);
   const ms = Math.max(0, endMs - t0.getTime());
   return Math.floor(ms / 86400000) + 1;
 }
+
 function dangerState(dueDays, createdAtIso) {
-  // 若已逾一半期限 → danger（紅）；否則 warn（橘）
+  // 已逾一半期限 → danger（紅）；否則 warn（橘）
   const d = Number(dueDays);
   if (!Number.isFinite(d) || d <= 0) return "warn";
   const elapsed = daysBetweenUTC(createdAtIso);
   return (elapsed >= Math.ceil(d / 2)) ? "danger" : "warn";
 }
+
+function formatYmd(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function computeDeadlineYmd(createdAtIso, dueDays) {
+  // 截止日 = created_at + (due_days - 1)，含當天算第 1 天
+  const d = Number(dueDays);
+  const days = (Number.isFinite(d) && d >= 1) ? d : 1;
+
+  const base = createdAtIso ? new Date(createdAtIso) : new Date();
+  const safeBase = Number.isNaN(base.getTime()) ? new Date() : base;
+
+  safeBase.setDate(safeBase.getDate() + (days - 1));
+  return formatYmd(safeBase);
+}
+
+// ----------------------------------------------------------------------------
+// 路徑/導頁（不改 home.js，只用 query 參數切詳細模式）
+// ----------------------------------------------------------------------------
 function isRemindersPath() {
-  // ✅ 你現在走 URL：/reminders
   const p = (location.pathname || "").replace(/\/+$/, "");
   return p === "/reminders";
 }
+
 function ensureRemindersViewShown() {
-  // ✅ 若直接進 /reminders，讓側欄按鈕「自己按一下」以切換視圖與標題
-  // （home.js 已經綁 click handler）
+  // 直接進 /reminders 時，確保側欄 view 切到 reminders（home.js 管 active/display/title）
   const btn = document.querySelector('.nav button[data-view="reminders"]');
-  if (btn && !btn.classList.contains("active")) {
-    btn.click();
+  if (btn && !btn.classList.contains("active")) btn.click();
+}
+
+function getDetailUserIdFromUrl() {
+  try {
+    const sp = new URLSearchParams(location.search || "");
+    const v = (sp.get("user") || "").trim();
+    return v ? v : null;
+  } catch {
+    return null;
   }
 }
 
-/* ------------------ 登入 ------------------ */
+function goToUserDetail(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid) return;
+  history.pushState({ view: "reminders", user: uid }, "", `/reminders?user=${encodeURIComponent(uid)}`);
+}
+
+function goToOverview() {
+  history.pushState({ view: "reminders" }, "", "/reminders");
+}
+
+// ----------------------------------------------------------------------------
+// 後端 API：更新/完成
+// ----------------------------------------------------------------------------
+async function patchReminder(reminderId, payload) {
+  const url = `/api/reminders/${encodeURIComponent(reminderId)}`;
+
+  // 先 PATCH
+  let r = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  // 後端若只支援 PUT：fallback
+  if (r.status === 405 || r.status === 404) {
+    r = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j?.ok === false) throw new Error(j?.error || j?.message || "更新失敗");
+  return j?.data || j;
+}
+
+async function completeReminder(reminderId) {
+  // 若你後端完成狀態不是 done（例如 closed），改這裡即可
+  return await patchReminder(reminderId, { status: "done" });
+}
+
+// ----------------------------------------------------------------------------
+// SweetAlert2 詳情彈窗：總覽格子與詳細列共用
+// ----------------------------------------------------------------------------
+function openAffairDetailPopup(rowEl) {
+  const reminderId = rowEl.dataset.id;
+  const isAdmin = (window.__ME__?.role === "admin");
+
+  const title0 = String(rowEl.dataset.title || "").trim();
+  const content0 = String(rowEl.dataset.content || "").trim();
+  const createdAt0 = String(rowEl.dataset.createdAt || "").trim();
+  const dueDays0 = rowEl.dataset.dueDays;
+
+  const deadlineYmd = computeDeadlineYmd(createdAt0, dueDays0).replaceAll("-", "/");
+
+  const ICON_EDIT = "✏️";
+  const ICON_SAVE = "💾";
+  const ICON_DONE = "✅";
+
+  const html = `
+    <div class="af-wrap">
+      <div class="af-head">
+        <div class="af-title">事務內容</div>
+        <div class="af-actions">
+          ${isAdmin ? `
+            <button class="action-btn js-af-action" type="button" data-action="edit" title="編輯" aria-label="編輯">${ICON_EDIT}</button>
+          ` : ""}
+          <button class="action-btn js-af-action action-done" type="button" data-action="done" title="完成" aria-label="完成">${ICON_DONE}</button>
+        </div>
+      </div>
+
+      <div class="af-grid">
+        <div class="af-label ${title0 ? "" : "af-hidden"}" data-row="titleLabel">案名</div>
+        <div class="${title0 ? "" : "af-hidden"}" data-row="titleField">
+          <div class="af-box" data-view="title">${esc(title0)}</div>
+          <input class="af-input af-hidden" data-edit="title" value="${esc(title0)}" />
+        </div>
+
+        <div class="af-label">內容</div>
+        <div>
+          <div class="af-box af-box--content" data-view="content">${esc(content0)}</div>
+          <textarea class="af-textarea af-hidden" data-edit="content">${esc(content0)}</textarea>
+        </div>
+      </div>
+
+      <div class="af-meta">
+        <div class="af-deadline">截止日期：${esc(deadlineYmd)}</div>
+      </div>
+
+      <div class="af-foot">
+        <button class="af-close" type="button" data-action="close">關閉</button>
+      </div>
+    </div>
+  `;
+
+  // SweetAlert2 未載入：降級
+  if (typeof Swal === "undefined") {
+    alert(`${title0 ? `案名：${title0}\n` : ""}內容：\n${content0}\n\n截止日期：${deadlineYmd}`);
+    return;
+  }
+
+  Swal.fire({
+    title: "",
+    html,
+    showConfirmButton: false,
+    showCloseButton: false,
+    focusConfirm: false,
+    width: 720,
+    didOpen: () => {
+      const root = Swal.getHtmlContainer();
+      if (!root) return;
+
+      let editMode = false;
+
+      const btnEdit  = root.querySelector('[data-action="edit"]');
+      const btnDone  = root.querySelector('[data-action="done"]');
+      const btnClose = root.querySelector('[data-action="close"]');
+
+      const viewTitle   = root.querySelector('[data-view="title"]');
+      const editTitle   = root.querySelector('[data-edit="title"]');
+      const viewContent = root.querySelector('[data-view="content"]');
+      const editContent = root.querySelector('[data-edit="content"]');
+
+      const titleLabelRow = root.querySelector('[data-row="titleLabel"]');
+      const titleFieldRow = root.querySelector('[data-row="titleField"]');
+
+      function setEditMode(on) {
+        editMode = on;
+
+        // admin 編輯模式：就算原本沒案名，也顯示案名列讓他補
+        if (titleLabelRow) titleLabelRow.classList.toggle("af-hidden", !on && !title0);
+        if (titleFieldRow) titleFieldRow.classList.toggle("af-hidden", !on && !title0);
+
+        if (viewTitle) viewTitle.classList.toggle("af-hidden", on);
+        if (editTitle) editTitle.classList.toggle("af-hidden", !on);
+
+        if (viewContent) viewContent.classList.toggle("af-hidden", on);
+        if (editContent) editContent.classList.toggle("af-hidden", !on);
+
+        if (btnEdit) {
+          btnEdit.textContent = on ? ICON_SAVE : ICON_EDIT;
+          btnEdit.title = on ? "儲存" : "編輯";
+          btnEdit.setAttribute("aria-label", on ? "儲存" : "編輯");
+        }
+      }
+
+      if (btnClose) btnClose.addEventListener("click", () => Swal.close());
+
+      // 完成
+      if (btnDone) {
+        btnDone.addEventListener("click", async () => {
+          const ok = await Swal.fire({
+            title: "確認完成？",
+            text: "完成後此事務會從未完成清單移除。",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "完成",
+            cancelButtonText: "取消",
+          });
+          if (!ok.isConfirmed) return;
+
+          try {
+            await completeReminder(reminderId);
+
+            // 從畫面移除
+            rowEl.remove();
+
+            // 詳細頁未完成數（若存在）
+            const cntEl = document.getElementById("detailOpenCount");
+            if (cntEl) {
+              const n = Number(cntEl.dataset.count || cntEl.textContent || 0);
+              const nn = Math.max(0, (Number.isFinite(n) ? n : 0) - 1);
+              cntEl.dataset.count = String(nn);
+              cntEl.textContent = String(nn);
+            }
+
+            // 總覽卡片未完成數 / more（若存在）
+            const card = document.querySelector(`.person-card[data-id="${rowEl.dataset.assigneeId}"]`);
+            if (card) {
+              const stat = card.querySelector(".stats .stat");
+              const listInCard = card.querySelector(".affair-list");
+              const moreBtn = card.querySelector(".affair-more-btn");
+              if (stat) {
+                const m = /未完成：(\d+)/.exec(stat.textContent || "");
+                const old = m ? Number(m[1]) : 0;
+                stat.textContent = `未完成：${Math.max(0, old - 1)}`;
+              }
+              if (listInCard && moreBtn) applyVisibleLimit(listInCard, moreBtn);
+            }
+
+            cachedReminders = (cachedReminders || []).filter(r => String(r.id) !== String(reminderId));
+            Swal.close();
+          } catch (err) {
+            console.error(err);
+            Swal.fire({ icon: "error", title: "完成失敗", text: String(err?.message || err) });
+          }
+        });
+      }
+
+      // 編輯（admin）
+      if (btnEdit) {
+        btnEdit.addEventListener("click", async () => {
+          // 第一次點：進編輯
+          if (!editMode) {
+            setEditMode(true);
+            editContent?.focus();
+            return;
+          }
+
+          // 第二次點：儲存
+          try {
+            const newTitle = editTitle ? String(editTitle.value || "").trim() : "";
+            const newContent = editContent ? String(editContent.value || "").trim() : "";
+
+            if (!newContent) {
+              Swal.fire({ icon: "warning", title: "請輸入內容", text: "內容不可為空。" });
+              return;
+            }
+
+            await patchReminder(reminderId, { title: newTitle || null, content: newContent });
+
+            // 更新彈窗顯示
+            if (viewTitle) viewTitle.textContent = newTitle;
+            if (viewContent) viewContent.textContent = newContent;
+
+            // 更新 row dataset
+            rowEl.dataset.title = newTitle;
+            rowEl.dataset.content = newContent;
+
+            // 更新總覽格子顯示字（案名或其他）
+            if (rowEl.classList.contains("affair-item")) {
+              rowEl.textContent = newTitle ? newTitle : "其他";
+            }
+
+            // 更新詳細列三欄（若是詳細列）
+            if (rowEl.classList.contains("rem-detail-row")) {
+              const tEl = rowEl.querySelector('[data-col="title"]');
+              const cEl = rowEl.querySelector('[data-col="content"]');
+              if (tEl) tEl.textContent = newTitle ? newTitle : "----";
+              if (cEl) cEl.textContent = newContent;
+            }
+
+            // 快取同步（可選）
+            const idx = (cachedReminders || []).findIndex(r => String(r.id) === String(reminderId));
+            if (idx >= 0) cachedReminders[idx] = { ...cachedReminders[idx], title: newTitle, content: newContent };
+
+            setEditMode(false);
+          } catch (err) {
+            console.error(err);
+            Swal.fire({ icon: "error", title: "更新失敗", text: String(err?.message || err) });
+          }
+        });
+      }
+    },
+  });
+}
+
+// ----------------------------------------------------------------------------
+// 登入
+// ----------------------------------------------------------------------------
 async function ensureLogin() {
   try {
     const me = await api.auth.me();
@@ -72,9 +391,11 @@ async function ensureLogin() {
   }
 }
 
-/* ------------------ 後端資料 ------------------ */
-// 1) 人員清單（你已有 /api/reminders/persons；保留 fallback）
+// ----------------------------------------------------------------------------
+// 後端資料
+// ----------------------------------------------------------------------------
 async function fetchPersons() {
+  // 你已有 /api/reminders/persons；保留 fallback
   try {
     const r = await fetch("/api/reminders/persons", {
       headers: { Accept: "application/json" },
@@ -86,6 +407,7 @@ async function fetchPersons() {
     if (j?.ok && Array.isArray(j.data)) return j.data;
   } catch (_) {}
 
+  // fallback options API
   for (const url of ["/api/responsible-user/options", "/api/responsibleuser/options"]) {
     try {
       const r2 = await fetch(url, { headers: { Accept: "application/json" }, credentials: "include" });
@@ -105,35 +427,43 @@ async function fetchPersons() {
   return [];
 }
 
-// 2) 事務清單（僅 open）
 async function fetchOpenReminders() {
-  // 期待回傳格式：[{ id, title, content, assignee_id, due_days, status, created_at }]
   try {
-    const url = "/api/reminders?status=open";
-    const r = await fetch(url, { headers: { Accept: "application/json" }, credentials: "include" });
+    const r = await fetch("/api/reminders?status=open", {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
     const j = await r.json().catch(() => ({}));
     if (Array.isArray(j?.data)) return j.data;
-    if (Array.isArray(j)) return j; // 寬容
+    if (Array.isArray(j)) return j;
   } catch (_) {}
   return [];
 }
 
-/* ------------------ 渲染 ------------------ */
+// ----------------------------------------------------------------------------
+// 總覽渲染（維持你的 3×3 卡片）
+// ----------------------------------------------------------------------------
 function personCardHtml(p, openCount = 0) {
-  const name = esc(p.username || p.display_name || `使用者${p.id ?? ""}`);
+  // 你要求：名字看起來像原本文字，不像按鈕
+  // 做法：用 <a> + style 取消底線/繼承顏色，但仍可點擊
+  const username = esc(p.username || `user${p.id ?? ""}`);
   return `
     <div class="person-card" data-id="${p.id}">
       <div class="header">
-        <div class="name">${name}</div>
+        <a
+          class="name person-link"
+          href="/reminders?user=${encodeURIComponent(p.id)}"
+          data-user-id="${p.id}"
+          style="cursor:pointer; text-decoration:none; color:inherit;"
+        >${username}</a>
       </div>
+
       <div class="stats" style="margin-top:-4px; margin-bottom:8px;">
         <span class="stat">未完成：${openCount}</span>
       </div>
 
-      <!-- 固定 3×3 的網格，不會把卡片撐高 -->
       <div class="affair-list" data-expanded="false"></div>
 
-      <!-- 固定高度的一列，預留給「顯示更多」。即使沒有也保留高度，不會改變卡片總高度 -->
       <div class="affair-more-row">
         <button class="affair-more-btn" type="button">顯示更多</button>
       </div>
@@ -141,7 +471,6 @@ function personCardHtml(p, openCount = 0) {
   `;
 }
 
-/** 控制 3×3 顯示與「顯示更多」按鈕 */
 function applyVisibleLimit(listEl, moreBtn) {
   const expanded = (listEl.dataset.expanded === "true");
   const items = Array.from(listEl.querySelectorAll(".affair-item"));
@@ -152,7 +481,6 @@ function applyVisibleLimit(listEl, moreBtn) {
     el.style.display = expanded ? "" : (idx < MAX_VISIBLE ? "" : "none");
   });
 
-  // ★ 告訴 CSS：這張卡片是否有「更多」
   const card = listEl.closest(".person-card");
   if (card) card.classList.toggle("has-more", overflow > 0);
 
@@ -168,47 +496,40 @@ function toggleExpand(listEl, moreBtn) {
   const expanded = (listEl.dataset.expanded === "true");
   listEl.dataset.expanded = expanded ? "false" : "true";
 
-  // 連動整張卡片高度（展開時卡片放大顯示全部；收合回 3×3）
   const card = listEl.closest(".person-card");
   if (card) card.classList.toggle("is-expanded", !expanded);
 
   applyVisibleLimit(listEl, moreBtn);
 }
 
-/** 直接在單格按鈕上套顏色（保留你的橘/紅） */
-function paintAffairByState(btnEl, state /* 'warn' | 'danger' */) {
+function paintAffairByState(btnEl, state) {
   btnEl.classList.remove("warn", "danger");
   btnEl.classList.add(state);
 }
 
-/** 新增一筆事務 DOM（整個格子就是按鈕） */
-function addAffairDOM(list, _moreBtn, row) {
+function addAffairDOM(list, row) {
   const label = (row.title && row.title.trim()) ? row.title.trim() : "其他";
 
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "affair-item";
+
+  // dataset：彈窗/完成/編輯共用
   btn.dataset.id = row.id;
   btn.dataset.assigneeId = row.assignee_id;
   btn.dataset.title = row.title || "";
   btn.dataset.content = row.content || "";
   btn.dataset.dueDays = row.due_days || "";
   btn.dataset.createdAt = row.created_at || "";
+
   btn.textContent = label;
-
-  const state = dangerState(row.due_days, row.created_at);
-  paintAffairByState(btn, state);
-
-  btn.addEventListener("click", () => {
-    // TODO: 詳情頁或彈窗
-    // location.href = `/reminders/${row.id}`;
-  });
+  paintAffairByState(btn, dangerState(row.due_days, row.created_at));
 
   list.appendChild(btn);
 }
 
 function groupByAssignee(openRows) {
-  const map = new Map(); // id -> rows[]
+  const map = new Map();
   for (const r of openRows) {
     const k = String(r.assignee_id);
     if (!map.has(k)) map.set(k, []);
@@ -217,6 +538,225 @@ function groupByAssignee(openRows) {
   return map;
 }
 
+// ----------------------------------------------------------------------------
+// 詳細頁排版：為避免「跑版」，在 JS 內注入一段 scoped CSS（只作用於 .rem-detail）
+// ----------------------------------------------------------------------------
+function ensureDetailStylesInjected() {
+  if (document.getElementById("remDetailStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "remDetailStyles";
+  style.textContent = `
+    /* ============================
+     * Reminders Detail (scoped)
+     * 只作用在 .rem-detail 容器內
+     * ============================ */
+    .rem-detail{
+      width:100%;
+    }
+
+    .rem-detail__top{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin: 6px 0 14px;
+    }
+    .rem-detail__title{
+      font-size:22px;
+      font-weight:900;
+      line-height:1.1;
+    }
+    .rem-detail__meta{
+      margin-top:6px;
+      font-size:12px;
+      color:#6b7280;
+    }
+    .rem-detail__back{
+      cursor:pointer;
+      text-decoration:none;
+      color:inherit;
+      font-weight:700;
+      white-space:nowrap;
+    }
+
+    .rem-detail__table{
+      width:100%;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      overflow:hidden;
+      background:#fff;
+    }
+
+    .rem-detail__head,
+    .rem-detail__row{
+      display:grid;
+      grid-template-columns: 200px 1fr 140px 96px; /* 案名 / 內容 / 截止 / 操作 */
+      align-items:center;
+      gap:0;
+    }
+
+    .rem-detail__head{
+      padding:10px 12px;
+      font-weight:900;
+      font-size:13px;
+      background:#f9fafb;
+      border-bottom:1px solid #e5e7eb;
+    }
+
+    .rem-detail__body .rem-detail__row{
+      padding:10px 12px;
+      font-size:13px;
+      border-bottom:1px solid #e5e7eb;
+      cursor:pointer;
+      user-select:none;
+    }
+    .rem-detail__body .rem-detail__row:hover{
+      background:#f9fafb;
+    }
+    .rem-detail__body .rem-detail__row:last-child{
+      border-bottom:none;
+    }
+
+    .rem-col--title{
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .rem-col--content{
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .rem-col--deadline{
+      white-space:nowrap;
+    }
+
+    .rem-col--actions{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+    }
+
+    /* 手機：縮欄寬，避免整頁炸裂 */
+    @media (max-width: 720px){
+      .rem-detail__head,
+      .rem-detail__row{
+        grid-template-columns: 140px 1fr 110px 80px;
+      }
+    }
+    @media (max-width: 520px){
+      /* 更小：把截止日期縮到 92px，操作縮到 72px */
+      .rem-detail__head,
+      .rem-detail__row{
+        grid-template-columns: 120px 1fr 92px 72px;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ----------------------------------------------------------------------------
+// 詳細頁渲染（整頁、橫向列、最後一欄 icon）
+// ----------------------------------------------------------------------------
+function renderUserDetail({ userId, persons, openRows }) {
+  ensureDetailStylesInjected();
+
+  const grid = document.getElementById("remindersGrid");
+  if (!grid) return;
+
+  const u = (persons || []).find((x) => String(x.id) === String(userId));
+  if (!u) {
+    grid.innerHTML = `<div class="error">找不到此使用者或你沒有權限查看。</div>`;
+    return;
+  }
+
+  // 你要求：只用 username，不用 display_name
+  const username = esc(u.username || `user${u.id}`);
+
+  const rows = (openRows || [])
+    .filter((r) => String(r.assignee_id) === String(userId))
+    .slice()
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+
+  const count = rows.length;
+  const isAdmin = (window.__ME__?.role === "admin");
+
+  // 操作 icon（符合你要「像專案那樣最後面」）
+  const ICON_EDIT = "✏️";
+  const ICON_DONE = "✅";
+
+  // ✅ 不包 card，直接整頁內容
+  grid.innerHTML = `
+    <div class="rem-detail" data-user="${esc(userId)}">
+      <div class="rem-detail__top">
+        <div>
+          <div class="rem-detail__title">${username}</div>
+          <div class="rem-detail__meta">
+            未完成：<span id="detailOpenCount" data-count="${count}">${count}</span>
+          </div>
+        </div>
+        <a class="rem-detail__back" href="/reminders" id="backToRemindersOverview">← 回列表</a>
+      </div>
+
+      <div class="rem-detail__table">
+        <div class="rem-detail__head">
+          <div>案名</div>
+          <div>內容</div>
+          <div>截止日期</div>
+        </div>
+        <div class="rem-detail__body" id="remDetailBody"></div>
+      </div>
+    </div>
+  `;
+
+  // SPA back（不整頁重整）
+  const back = document.getElementById("backToRemindersOverview");
+  if (back) {
+    back.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToOverview();
+      renderReminders({ force: true });
+    });
+  }
+
+  const body = document.getElementById("remDetailBody");
+  if (!body) return;
+
+  for (const r of rows) {
+    const title = (r.title && r.title.trim()) ? r.title.trim() : "";
+    const content = String(r.content || "").trim();
+    const deadline = computeDeadlineYmd(r.created_at, r.due_days).replaceAll("-", "/");
+
+    const row = document.createElement("div");
+    row.className = "rem-detail__row rem-detail-row"; // rem-detail-row：讓彈窗更新欄位用
+
+    // dataset：彈窗/完成/編輯共用
+    row.dataset.id = r.id;
+    row.dataset.assigneeId = r.assignee_id;
+    row.dataset.title = r.title || "";
+    row.dataset.content = r.content || "";
+    row.dataset.dueDays = r.due_days || "";
+    row.dataset.createdAt = r.created_at || "";
+
+    row.innerHTML = `
+      <div class="rem-col--title" data-col="title">${esc(title ? title : "----")}</div>
+      <div class="rem-col--content" data-col="content">${esc(content)}</div>
+      <div class="rem-col--deadline" data-col="deadline">${esc(deadline)}</div>
+      <div class="rem-col--actions">
+        ${isAdmin ? `
+          <button type="button" class="action-btn rem-detail-edit" title="編輯" aria-label="編輯" data-action="edit">${ICON_EDIT}</button>
+        ` : ""}
+        <button type="button" class="action-btn rem-detail-done" title="完成" aria-label="完成" data-action="done">${ICON_DONE}</button>
+      </div>
+    `;
+
+    body.appendChild(row);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 主渲染：依 URL 決定總覽或詳細
+// ----------------------------------------------------------------------------
 async function renderReminders({ force = false } = {}) {
   if (rendering) return;
   if (loadedOnce && !force) return;
@@ -229,11 +769,7 @@ async function renderReminders({ force = false } = {}) {
   grid.textContent = "載入中…";
 
   try {
-    const [persons, openRows] = await Promise.all([
-      fetchPersons(),
-      fetchOpenReminders(),
-    ]);
-
+    const [persons, openRows] = await Promise.all([fetchPersons(), fetchOpenReminders()]);
     cachedPersons = persons;
     cachedReminders = openRows;
 
@@ -242,15 +778,22 @@ async function renderReminders({ force = false } = {}) {
       return;
     }
 
+    // 詳細模式
+    const detailUserId = getDetailUserIdFromUrl();
+    if (detailUserId) {
+      renderUserDetail({ userId: detailUserId, persons, openRows });
+      loadedOnce = true;
+      return;
+    }
+
+    // 總覽模式
     const grouped = groupByAssignee(openRows);
 
-    // 先畫人員卡片（把 open 計數帶入）
     grid.innerHTML = persons.map((p) => {
       const cnt = (grouped.get(String(p.id)) || []).length;
       return personCardHtml(p, cnt);
     }).join("");
 
-    // 再把每個人的 open 事務依「建立時間 ASC」加到卡片（新增在最後面）
     for (const p of persons) {
       const rows = (grouped.get(String(p.id)) || []).slice()
         .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
@@ -260,11 +803,10 @@ async function renderReminders({ force = false } = {}) {
       const moreBtn = card?.querySelector(".affair-more-btn");
       if (!list || !moreBtn) continue;
 
-      rows.forEach((row) => addAffairDOM(list, moreBtn, row));
+      rows.forEach((row) => addAffairDOM(list, row));
       applyVisibleLimit(list, moreBtn);
     }
 
-    wireListInteractions();
     loadedOnce = true;
   } catch (err) {
     console.error(err);
@@ -274,7 +816,9 @@ async function renderReminders({ force = false } = {}) {
   }
 }
 
-/* ------------------ 新增（Modal） ------------------ */
+// ----------------------------------------------------------------------------
+// 新增（Modal）
+// ----------------------------------------------------------------------------
 async function loadAssigneesInto(selectEl) {
   const arr = Array.isArray(cachedPersons) ? cachedPersons : [];
   selectEl.innerHTML =
@@ -302,6 +846,7 @@ function openAffairModal() {
 
   m.style.display = "flex";
 }
+
 function closeAffairModal() {
   const m = document.getElementById("affairModal");
   if (!m) return;
@@ -336,22 +881,8 @@ async function submitAffair() {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j?.ok === false) throw new Error(j?.error || j?.message || "新增失敗");
 
-    const row = j?.data || j;
-
-    // 立即插入到對應卡片並更新顯示
-    const { card, list, moreBtn } = getCardEls(row.assignee_id);
-    if (list && moreBtn) {
-      addAffairDOM(list, moreBtn, row);
-      applyVisibleLimit(list, moreBtn);
-
-      const stat = card.querySelector(".stats .stat");
-      if (stat) {
-        const m = /未完成：(\d+)/.exec(stat.textContent || "");
-        const old = m ? Number(m[1]) : 0;
-        stat.textContent = `未完成：${old + 1}`;
-      }
-    }
-
+    // 最穩：重畫（避免排序/計數/顯示更多狀態不一致）
+    await renderReminders({ force: true });
     closeAffairModal();
   } catch (err) {
     console.error(err);
@@ -359,7 +890,9 @@ async function submitAffair() {
   }
 }
 
-/* ------------------ 清單互動 ------------------ */
+// ----------------------------------------------------------------------------
+// 綁定：Modal
+// ----------------------------------------------------------------------------
 function wireAffairModal() {
   if (window.__AFFAIR_WIRED__) return;
   window.__AFFAIR_WIRED__ = true;
@@ -373,17 +906,34 @@ function wireAffairModal() {
   if (openBtn) openBtn.addEventListener("click", openAffairModal);
   if (closeBtn) closeBtn.addEventListener("click", closeAffairModal);
   if (cancelBtn) cancelBtn.addEventListener("click", closeAffairModal);
+
   if (modal) {
     modal.addEventListener("click", (e) => { if (e.target === modal) closeAffairModal(); });
   }
   if (submitBtn) submitBtn.addEventListener("click", submitAffair);
 }
 
+// ----------------------------------------------------------------------------
+// 綁定：總覽/詳細互動（事件代理，一次綁定即可）
+// ----------------------------------------------------------------------------
 function wireListInteractions() {
   if (window.__AFFAIR_LIST_WIRED__) return;
   window.__AFFAIR_LIST_WIRED__ = true;
 
-  document.addEventListener("click", (e) => {
+  document.addEventListener("click", async (e) => {
+    // 1) 點帳號名 → 進詳細頁
+    const personLink = e.target.closest(".person-link");
+    if (personLink) {
+      e.preventDefault();
+      const uid = personLink.dataset.userId;
+      if (uid) {
+        goToUserDetail(uid);
+        await renderReminders({ force: true });
+      }
+      return;
+    }
+
+    // 2) 總覽：顯示更多
     const more = e.target.closest(".affair-more-btn");
     if (more) {
       const card = more.closest(".person-card");
@@ -392,40 +942,73 @@ function wireListInteractions() {
       return;
     }
 
-    const rowBtn = e.target.closest(".affair-item");
-    if (rowBtn) {
-      // TODO: 詳情／導頁
-      // location.href = `/reminders/${rowBtn.dataset.id}`;
+    // 3) 總覽：點格子 → 彈窗
+    const gridBtn = e.target.closest(".affair-item");
+    if (gridBtn) {
+      openAffairDetailPopup(gridBtn);
+      return;
+    }
+
+    // 4) 詳細：點「完成」→ 直接完成（不開彈窗）
+    const doneBtn = e.target.closest(".rem-detail-done");
+    if (doneBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const row = doneBtn.closest(".rem-detail-row");
+      if (!row) return;
+
+      const reminderId = row.dataset.id;
+
+      try {
+        await completeReminder(reminderId);
+        row.remove();
+
+        // 更新未完成數
+        const cntEl = document.getElementById("detailOpenCount");
+        if (cntEl) {
+          const n = Number(cntEl.dataset.count || cntEl.textContent || 0);
+          const nn = Math.max(0, (Number.isFinite(n) ? n : 0) - 1);
+          cntEl.dataset.count = String(nn);
+          cntEl.textContent = String(nn);
+        }
+
+        cachedReminders = (cachedReminders || []).filter(r => String(r.id) !== String(reminderId));
+      } catch (err) {
+        console.error(err);
+        alert(toUserMessage(err, "完成失敗"));
+      }
+      return;
+    }
+
+    // 5) 詳細：點「編輯」→ 開彈窗（由彈窗內做編輯儲存）
+    const editBtn = e.target.closest(".rem-detail-edit");
+    if (editBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const row = editBtn.closest(".rem-detail-row");
+      if (row) openAffairDetailPopup(row);
+      return;
+    }
+
+    // 6) 詳細：點列 → 開彈窗
+    const detailRow = e.target.closest(".rem-detail-row");
+    if (detailRow) {
+      // 若點在操作欄內，不要再觸發列點擊
+      if (e.target.closest(".rem-col--actions")) return;
+      openAffairDetailPopup(detailRow);
+      return;
     }
   });
 }
 
-/* ------------------ 卡片/清單存取 ------------------ */
-function getCardEls(userId) {
-  const grid = document.getElementById("remindersGrid");
-  let card = grid.querySelector(`.person-card[data-id="${userId}"]`);
-  if (!card) {
-    const u = (cachedPersons || []).find((x) => String(x.id) === String(userId))
-      || { id: userId, username: `user${userId}` };
-
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = personCardHtml(u, 0);
-    card = wrapper.firstElementChild;
-    grid.appendChild(card);
-  }
-  const list = card.querySelector(".affair-list");
-  const moreBtn = card.querySelector(".affair-more-btn");
-  return { card, list, moreBtn };
-}
-
-/* ------------------ 啟動入口（✅ 這段是關鍵修正） ------------------ */
+// ----------------------------------------------------------------------------
+// 啟動入口：讓 /reminders 直接可用（含 F5）
+// ----------------------------------------------------------------------------
 async function activateRemindersIfNeeded({ force = false } = {}) {
-  // 1) 直接進 /reminders（含 F5）→ 先讓視圖切過去（由 home.js 控制 display/active/title）
-  if (isRemindersPath()) {
-    ensureRemindersViewShown();
-  }
+  if (isRemindersPath()) ensureRemindersViewShown();
 
-  // 2) 若已經在 reminders 視圖（按鈕 active）或 path 是 /reminders → 載入
   const activeBtn = document.querySelector('.nav button.active[data-view="reminders"]');
   if (isRemindersPath() || activeBtn) {
     await ensureLogin();
@@ -450,19 +1033,16 @@ function bindNavHook() {
     await activateRemindersIfNeeded({ force: true });
   });
 
-  // 若你之後 home.js 有 dispatch 這個事件，也支援（可有可無）
-  window.addEventListener("app:viewchange", async (ev) => {
-    if (ev?.detail?.view === "reminders") {
-      await ensureLogin();
-      await renderReminders({ force: true });
-      wireAffairModal();
-    }
-  });
-
-  // 支援瀏覽器上一頁/下一頁（若你未來用 pushState）
+  // 支援上一頁/下一頁（/reminders ↔ /reminders?user=...）
   window.addEventListener("popstate", async () => {
     await activateRemindersIfNeeded({ force: true });
   });
 }
 
-document.addEventListener("DOMContentLoaded", bindNavHook);
+// ----------------------------------------------------------------------------
+// 全域初始化（一次）
+// ----------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  wireListInteractions(); // 只綁一次（事件代理）
+  bindNavHook();
+});

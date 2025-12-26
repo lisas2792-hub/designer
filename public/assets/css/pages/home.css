@@ -1,160 +1,80 @@
-/* ====== 功能按鈕區 ====== */
-.function-buttons{
-  display:flex;
-  flex-direction: column;
-  align-items: flex-end;
+/* ======================================================================
+ * home.css（Home Page Shell / View Control）
+ * ----------------------------------------------------------------------
+ * 用途說明：
+ * - 只負責「home.html 這一頁」的通用行為
+ * - 不放任何 projects / reminders / password 的內容型 UI
+ * - 不定義按鈕、卡片、grid、表單外觀
+ *
+ * 這支檔案的目標：
+ * - 穩定
+ * - 幾乎不需要再改
+ * - 未來加新 view 不會互相污染
+ * ====================================================================== */
+
+
+/* =========================
+ * 1) View 顯示控制（預設）
+ * ========================= */
+/*
+ * 所有 view 都使用 .view class
+ * JS 只需要控制 display 或加 active class
+ */
+.view{
+  display:block;
 }
 
-#unsavedNotice{
-  display:none;           /* 預設隱藏，JS 控制顯示 */
-  color:#b45309;
-  font-weight:600;
-  margin-bottom:4px;
+/* 預設隱藏（由 JS 控制顯示哪個） */
+.view[style*="display:none"]{
+  display:none !important;
 }
 
-#unsavedNotice.is-visible {
-  display: block;              /* 加上 class 時顯示 */
+
+/* =========================
+ * 2) Home Page 通用間距微調
+ * ========================= */
+/*
+ * 如果未來某個 view 忘了包 card，
+ * 至少整體不會貼邊
+ */
+.content > .view{
+  min-height: 1px; /* 防止空 view 折疊 */
 }
 
-#addProjectBtn{
-  padding:6px 12px;
-  border:1px solid var(--primary);
-  background:#fff;
-  color:var(--primary);
-  border-radius:8px;
-  cursor:pointer;
+
+/* =========================
+ * 3) Topbar / Content 的 Home 層級例外（保護用）
+ * ========================= */
+/*
+ * 若某些 modal / popup 從 home.js 動態插入，
+ * 保證不被 sidebar 或 sticky topbar 蓋住
+ */
+.main{
+  position:relative;
 }
 
-#saveBtn{
-  padding:6px 12px;
-  border:1px solid var(--primary);
-  background:var(--primary);
-  color:#fff;
-  border-radius:8px;
-  cursor:pointer;
+
+/* =========================
+ * 4) 全頁層級的保護性 Reset
+ * ========================= */
+/*
+ * 避免未來新增 view 時，
+ * 因為某個 page.css 寫太寬而影響其他 view
+ */
+.view *{
+  box-sizing:border-box;
 }
 
-/* ====== 修改密碼區 ====== */
-#view-password .card{ max-width:520px; }
 
-/* 標題/說明（原本在 h2, p 的 inline） */
-#view-password h2{ margin:0 0 8px; }
-#view-password p{ margin:0 16px 16px 0; color:#6b7280; }
-
-/* 表單容器 grid */
-#pwdForm > div{
-  display:grid;
-  gap:12px;
+/* =========================
+ * 5) Debug / 開發用（保留但預設關閉）
+ * ========================= */
+/*
+ * 若你之後需要 debug view 邊界，
+ * 可以臨時打開這段
+ */
+/*
+.view{
+  outline:1px dashed rgba(59,130,246,.3);
 }
-
-/* label 上的小標題 */
-#pwdForm label > div{
-  font-size:14px;
-  margin-bottom:4px;
-}
-
-/* 密碼欄外觀（沿用 app.css 的風格） */
-#pwdForm input[type="password"]{
-  width:100%;
-  padding:10px;
-  border:1px solid #e5e7eb;
-  border-radius:10px;
-  font-size:16px;
-}
-
-/* 儲存按鈕 */
-#savePwd{
-  margin-top:6px;
-  padding:10px 14px;
-  border:1px solid var(--primary);
-  background:var(--primary);
-  color:#fff;
-  border-radius:10px;
-  cursor:pointer;
-}
-
-/* 提示訊息 */
-#pwdMsg{
-  font-size:14px;
-  color:#6b7280;
-}
-
-/* ====== Modal 送出按鈕 ====== */
-#f_submit{
-  background:var(--primary);
-  color:#fff;
-  border:1px solid var(--primary);
-  padding:8px 12px;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-/* ====== 上傳 Modal ====== */
-/* 外層（原本在 inline，但你現在 #uploadModal 沒樣式 → 這裡補上） */
-#uploadModal{
-  display:none;               /* 預設隱藏，JS 控制顯示 */
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.35);
-  align-items:center;
-  justify-content:center;
-  z-index:2000;
-}
-
-/* 內層卡片 */
-#uploadModal > div{
-  background:#fff;
-  padding:16px;
-  width:360px;
-  border-radius:12px;
-  box-shadow:0 10px 30px rgba(0,0,0,.2);
-}
-
-/* 標題 */
-#uploadModal h3{ margin-top:0; }
-
-/* 提示與按鈕列 */
-#uploadHint{
-  font-size:14px;
-  color:#666;
-  margin:6px 0 12px;
-}
-#uploadModal .btn-row,
-#uploadModal > div > div {  /* 直接選現有那個包兩顆按鈕的 div */
-  display:flex;
-  gap:8px;
-}
-#chooseFileBtn,
-#cancelUploadBtn{
-  padding:8px 12px;
-  border:1px solid #d1d5db;
-  border-radius:8px;
-  background:#fff;
-  cursor:pointer;
-}
-
-/* 狀態列 */
-#uploadStatus{
-  margin-top:12px;
-  font-size:13px;
-  color:#333;
-}
-
-/* Logo 調整 */
-.sidebar .logo-box {
-  width: 100%;
-  padding: 10px 15px;
-  margin-bottom: 0px;
-  text-align: center;
-}
-
-.sidebar .account {
-  margin-top: 0 !important;
-  padding-top: 0px !important;
-}
-
-.sidebar .logo-box img {
-  width: 100%;
-  max-width: 300px;    /* 調整大小 */
-  filter: invert(1);   /* 直接反轉顏色 */
-}
+*/
