@@ -1,7 +1,9 @@
 // ======================================================
-//  projects.js v2025-12-18-stable (no-jump)
-//  - 修正切換 tab 上下跳：保持 scrollTop + 不重建表頭
-//  - 維持舊行為：仍然離開 => 放棄修改(清 dirty) + 警示消失
+//  projects.js v2026-01-05-stable
+//  - 保留原本「切 tab 不跳」與「dirty 放棄修改」邏輯
+//  - ✅ Modal 新增/編輯：中文 SweetAlert2 提示（fallback alert）
+//  - ✅ 驗證順序維持原本：先編號(project_id) → 再案名(name)
+//  - ✅ 刪除/完成：中文確認視窗（fallback confirm）
 // ======================================================
 
 import { api, apiFetch } from "../api.js";
@@ -15,6 +17,83 @@ export function initProjectsFeature() {
   let currentFilter = "ongoing";  // ongoing / all / done
 
   // ======================================================
+  // SweetAlert2 helpers（無 Swal 則 fallback）
+  // ======================================================
+  const hasSwal = () => typeof window !== "undefined" && typeof window.Swal !== "undefined";
+
+  async function uiInfo(title, text, opts = {}) {
+    if (hasSwal()) {
+      return await Swal.fire({
+        icon: "info",
+        title: title || "提示",
+        text: text || "",
+        confirmButtonText: "知道了",
+        ...opts,
+      });
+    }
+    alert([title, text].filter(Boolean).join("\n"));
+    return { isConfirmed: true };
+  }
+
+  async function uiSuccess(title, text, opts = {}) {
+    if (hasSwal()) {
+      return await Swal.fire({
+        icon: "success",
+        title: title || "完成",
+        text: text || "",
+        confirmButtonText: "知道了",
+        ...opts,
+      });
+    }
+    alert([title, text].filter(Boolean).join("\n"));
+    return { isConfirmed: true };
+  }
+
+  async function uiWarn(title, text, opts = {}) {
+    if (hasSwal()) {
+      return await Swal.fire({
+        icon: "warning",
+        title: title || "提醒",
+        text: text || "",
+        confirmButtonText: "知道了",
+        ...opts,
+      });
+    }
+    alert([title, text].filter(Boolean).join("\n"));
+    return { isConfirmed: true };
+  }
+
+  async function uiError(title, text, opts = {}) {
+    if (hasSwal()) {
+      return await Swal.fire({
+        icon: "error",
+        title: title || "錯誤",
+        text: text || "",
+        confirmButtonText: "知道了",
+        ...opts,
+      });
+    }
+    alert([title, text].filter(Boolean).join("\n"));
+    return { isConfirmed: true };
+  }
+
+  async function uiConfirm({ title, text, confirmText = "確認", cancelText = "取消", icon = "warning" }) {
+    if (hasSwal()) {
+      const r = await Swal.fire({
+        icon,
+        title,
+        text,
+        showCancelButton: true,
+        confirmButtonText: confirmText,
+        cancelButtonText: cancelText,
+        reverseButtons: true,
+      });
+      return !!r.isConfirmed;
+    }
+    return window.confirm([title, text].filter(Boolean).join("\n"));
+  }
+
+  // ======================================================
   // Scroll 穩定器（消掉上下跳）
   // ======================================================
   function getMainScroller() {
@@ -26,10 +105,8 @@ export function initProjectsFeature() {
     const scroller = getMainScroller();
     const prevTop = scroller ? scroller.scrollTop : 0;
 
-    // 執行 DOM 大改動
     const r = await fn();
 
-    // 下一幀再還原 scrollTop（避免 reflow 後再跳一下）
     if (scroller) {
       requestAnimationFrame(() => {
         scroller.scrollTop = prevTop;
@@ -86,15 +163,20 @@ export function initProjectsFeature() {
   async function confirmNavigateWhenDirty() {
     if (!hasUnsavedChanges()) return true;
 
-    const r = await Swal.fire({
-      icon: "warning",
-      title: "尚未儲存變更",
-      html: "你剛剛有修改尚未按「儲存」。<br>確定要離開或切換嗎？",
-      showCancelButton: true,
-      confirmButtonText: "仍然離開",
-      cancelButtonText: "先去儲存",
-    });
-    return r.isConfirmed;
+    if (hasSwal()) {
+      const r = await Swal.fire({
+        icon: "warning",
+        title: "尚未儲存變更",
+        html: "你剛剛有修改尚未按「儲存」。<br>確定要離開或切換嗎？",
+        showCancelButton: true,
+        confirmButtonText: "仍然離開",
+        cancelButtonText: "先去儲存",
+        reverseButtons: true,
+      });
+      return r.isConfirmed;
+    }
+
+    return window.confirm("尚未儲存變更。\n確定要離開或切換嗎？（將放棄修改）");
   }
 
   // ======================================================
@@ -107,8 +189,6 @@ export function initProjectsFeature() {
 
     head.dataset.inited = "1";
 
-    // 固定 3 + 8(task-head) + 3(action-head)
-    // 你只想看到前 3 個；task-head 會被 CSS visibility:hidden
     head.innerHTML = `
       <div>階段</div>
       <div>編號</div>
@@ -460,13 +540,11 @@ export function initProjectsFeature() {
       if (btnDone) btnDone.style.display = done ? "none" : "";
     });
 
-    // ongoing 顯示 legend；done/all 隱藏但佔位（不跳）
     const legend = document.getElementById("legendBar");
     if (legend) legend.classList.toggle("is-hidden", currentFilter !== "ongoing");
 
     refreshStageCellsForCurrentTab();
 
-    // done sort
     if (currentFilter === "done") {
       const grid = document.getElementById("projectsGrid");
       const doneRows = Array.from(grid.querySelectorAll(".project-row.is-done"));
@@ -474,7 +552,6 @@ export function initProjectsFeature() {
       doneRows.forEach((r) => grid.appendChild(r));
     }
 
-    // all sort
     if (currentFilter === "all") {
       const grid = document.getElementById("projectsGrid");
       const allRows = Array.from(grid.querySelectorAll(".project-row"));
@@ -484,7 +561,6 @@ export function initProjectsFeature() {
   }
 
   function applyFilter() {
-    // 外層包「保持 scrollTop」，消掉跳動
     return withStableScroll(async () => {
       applyFilterCore();
     });
@@ -501,8 +577,6 @@ export function initProjectsFeature() {
     if (hasUnsavedChanges()) {
       const ok = await confirmNavigateWhenDirty();
       if (!ok) return;
-
-      // ✅ 舊行為：放棄修改、清零、警示消失
       await discardUnsavedChanges({ refresh: true });
     }
 
@@ -513,7 +587,7 @@ export function initProjectsFeature() {
   });
 
   // ------------------------------------------------------
-  // 新增 / 編輯 Modal + 送出（你原本邏輯保留）
+  // 新增 / 編輯 Modal + 送出
   // ------------------------------------------------------
   const addBtn = document.getElementById("addProjectBtn");
   const modal = document.getElementById("createModal");
@@ -555,7 +629,7 @@ export function initProjectsFeature() {
     const data = await apiFetch(path, { method: isEdit ? "PATCH" : "POST", body });
     if (data?.ok === false) throw new Error(data.message || "失敗");
 
-    alert(isEdit ? "已更新專案" : "已新增專案");
+    await uiSuccess(isEdit ? "已更新專案" : "已新增專案", "");
     await loadAndRenderProjects();
   }
 
@@ -659,8 +733,13 @@ export function initProjectsFeature() {
 
       if (mode === "edit" && editId) body.id = Number(editId);
 
-      if (!body.project_id || !body.name) {
-        alert("請填寫：編號、案名");
+      // ✅ 驗證順序維持原本：先編號 → 再案名
+      if (!body.project_id) {
+        await uiWarn("請填寫編號", "編號為必填");
+        return;
+      }
+      if (!body.name) {
+        await uiWarn("請填寫案名", "案名為必填");
         return;
       }
 
@@ -669,7 +748,7 @@ export function initProjectsFeature() {
         closeModal();
       } catch (e) {
         console.error("[SAVE] failed", e);
-        alert("操作失敗：" + (e?.message || e));
+        await uiError("操作失敗", String(e?.message || e || "未知錯誤"));
       }
     });
   }
@@ -688,30 +767,45 @@ export function initProjectsFeature() {
       const p = projectsById.get(idStr);
 
       if (action === "edit") {
-        if (!p) { alert("找不到資料"); return; }
+        if (!p) { await uiError("找不到資料", "此專案可能已被刪除"); return; }
         openEditModal(p);
         return;
       }
 
       if (action === "delete") {
-        if (!p) { alert("找不到資料"); return; }
-        const ok = confirm(`確定要刪除「${p.project_id}｜${p.name}」嗎？`);
+        if (!p) { await uiError("找不到資料", "此專案可能已被刪除"); return; }
+
+        const ok = await uiConfirm({
+          title: "確定要刪除？",
+          text: `確定要刪除「${p.project_id}｜${p.name}」嗎？`,
+          confirmText: "刪除",
+          cancelText: "取消",
+          icon: "warning",
+        });
         if (!ok) return;
 
         try {
           await apiFetch(`/api/projects/${idStr}`, { method: "DELETE" });
           btn.closest(".project-row")?.remove();
           projectsById.delete(idStr);
+          await uiSuccess("已刪除", "");
         } catch (err) {
           console.error("[DELETE] failed", err);
-          alert("刪除失敗：" + (err?.message || err));
+          await uiError("刪除失敗", String(err?.message || err));
         }
         return;
       }
 
       if (action === "done") {
-        if (!p) { alert("找不到資料"); return; }
-        const ok = confirm(`要把「${p.project_id}｜${p.name}」標記為已完成嗎？`);
+        if (!p) { await uiError("找不到資料", "此專案可能已被刪除"); return; }
+
+        const ok = await uiConfirm({
+          title: "標記為已完成？",
+          text: `要把「${p.project_id}｜${p.name}」標記為已完成嗎？`,
+          confirmText: "完成",
+          cancelText: "取消",
+          icon: "question",
+        });
         if (!ok) return;
 
         try {
@@ -721,10 +815,10 @@ export function initProjectsFeature() {
 
           apiFetch(`/api/projects/${idStr}`, { method: "PATCH", body: { stage_id: 3 } }).catch(() => {});
           await applyFilter();
-          alert("已標記為已完成");
+          await uiSuccess("已標記為已完成", "");
         } catch (err) {
           console.error("[DONE] failed", err);
-          alert("操作失敗：" + (err?.message || err));
+          await uiError("操作失敗", String(err?.message || err));
         }
         return;
       }
@@ -738,12 +832,13 @@ export function initProjectsFeature() {
   if (saveBtn) {
     saveBtn.addEventListener("click", async () => {
       if (dirty.size === 0) {
-        Swal.fire({ icon: "info", title: "沒有變更", timer: 800, showConfirmButton: false });
+        if (hasSwal()) Swal.fire({ icon: "info", title: "沒有變更", timer: 800, showConfirmButton: false });
+        else alert("沒有變更");
         syncUnsavedUI();
         return;
       }
 
-      Swal.fire({ title: "更新中...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      if (hasSwal()) Swal.fire({ title: "更新中...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
       try {
         const jobs = Array.from(dirty.entries()).map(([id, patch]) =>
@@ -755,18 +850,22 @@ export function initProjectsFeature() {
 
         for (const id of successIds) dirty.delete(id);
 
-        Swal.close();
+        if (hasSwal()) Swal.close();
 
         if (successIds.length > 0) {
-          Swal.fire({ icon: "success", title: `已更新 ${successIds.length} 筆`, timer: 1000, showConfirmButton: false });
+          if (hasSwal()) {
+            Swal.fire({ icon: "success", title: `已更新 ${successIds.length} 筆`, timer: 1000, showConfirmButton: false });
+          } else {
+            alert(`已更新 ${successIds.length} 筆`);
+          }
         }
 
         await loadAndRenderProjects();
         syncUnsavedUI();
       } catch (e) {
-        Swal.close();
+        if (hasSwal()) Swal.close();
         console.error(e);
-        Swal.fire("錯誤", "更新時發生錯誤", "error");
+        await uiError("錯誤", "更新時發生錯誤");
         syncUnsavedUI();
       }
     });

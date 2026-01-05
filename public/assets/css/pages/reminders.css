@@ -1,25 +1,37 @@
+/* public/assets/css/reminders.css */
+/* ============================================================================
+   Reminders（事務提醒）樣式（Production 可用）
+   - 結構分四段：總覽卡片 / 新增 Modal / SweetAlert 詳情 / 詳細頁（全寬且保留卡片視覺）
+   - 詳細頁重點：
+     1) 不能卡在 person-grid 第一欄
+     2) 但要保留原本「第一張」那種 card 視覺（不要透明、不要 padding=0）
+     3) 表格欄寬與單行省略要一致（桌機/手機）
+   ============================================================================ */
+
+
 /* =========================================================
-   人員 Grid：桌機 5 / 平板 3 / 手機 2
+   1) 總覽：人員 Grid（桌機 5 / 平板 3 / 手機 2）
    ========================================================= */
 .person-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px; /* 略縮小但不擠 */
+  gap: 14px;
 }
 @media (max-width: 1200px) { .person-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px)  { .person-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
+
 /* =========================================================
-   卡片基本樣式（整張人卡片：略縮但不貼邊）
+   2) 總覽：人卡片（含 3×3 事務格）
    ========================================================= */
 .person-card {
-  /* 控制 3×3 區的單格高度 & 間距（越小 → 卡片越矮） */
-  --row: 46px;   /* 原 46 → 34：每格稍小，仍好點擊 */
-  --gap: 8px;    /* 原 10 → 6：格間距略小 */
+  /* 3×3 單格高度與間距 */
+  --row: 46px;
+  --gap: 8px;
 
   border: 1px solid #e5e7eb;
-  border-radius: 14px;   /* 略小一點的圓角 */
-  padding: 10px;         /* 不貼邊；若要更緊湊可改 8 */
+  border-radius: 14px;
+  padding: 10px;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -28,42 +40,42 @@
 .person-card .name { font-weight: 600; font-size: 0.95rem; }
 .person-card .stats { font-size: 0.72rem; color: #555; margin-bottom: 2px; }
 
-/* =========================================================
-   3×3 區（收合固定高；展開自動撐高；hover 陰影不被吃）
-   ========================================================= */
+/* 3×3 區：收合固定三行；展開自動撐高；hover 陰影不被裁切 */
 .person-card .affair-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: var(--row);
   gap: var(--gap);
-  height: calc(var(--row) * 3 + var(--gap) * 2); /* 收合只顯示 3 行 */
+  height: calc(var(--row) * 3 + var(--gap) * 2);
   margin-top: 6px;
-  overflow: visible; /* 讓第一排 hover 陰影不被裁切 */
+  overflow: visible;
 }
-.person-card.is-expanded .affair-list { height: auto; } /* 展開：全部可見 */
+.person-card.is-expanded .affair-list { height: auto; }
 
+/* 手機：2 欄（避免擠爆） */
 @media (max-width: 640px){
   .person-card .affair-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+
 /* =========================================================
-   顯示更多：有 overflow 才顯示；貼近底邊
+   3) 總覽：顯示更多（有 overflow 才顯示）
    ========================================================= */
 .person-card .affair-more-row {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  height: 6px;      /* 無更多時留的高度 */
-  margin-top: 6px;  /* 離 3×3 區的距離 */
+  height: 6px;
+  margin-top: 6px;
 }
 .person-card.has-more .affair-more-row {
-  height: 14px;     /* 有更多時的點擊高度（仍靠近底邊） */
+  height: 14px;
   margin-top: 6px;
 }
 .affair-more-btn {
-  display: none; /* 由 JS 控制（>9 筆時顯示） */
+  display: none; /* JS 控制顯示 */
   padding: 3px 8px;
-  font-size: 11px;       /* 字不會太大 */
+  font-size: 11px;
   border: 1px dashed #d1d5db;
   border-radius: 8px;
   background: #fff;
@@ -75,8 +87,9 @@
 .affair-more-btn:hover { background: #f9fafb; box-shadow: 0 3px 8px rgba(0,0,0,.06); }
 .affair-more-btn:focus-visible { outline: 2px solid rgba(59,130,246,.25); outline-offset: 2px; }
 
+
 /* =========================================================
-   事務格子（整塊可點）：微浮起、保留橘/紅；不改你的顏色規則
+   4) 總覽：事務格子（warn/danger）
    ========================================================= */
 .affair-item,
 button.affair-item {
@@ -88,10 +101,16 @@ button.affair-item {
   border-radius: 10px;
   border: 1px solid #e5e7eb;
   background: #fafafa;
-  cursor: pointer; user-select: none;
+  cursor: pointer;
+  user-select: none;
 
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-size: 12.5px; font-weight: 600; color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
 
   transition: box-shadow .12s ease, transform .05s ease,
               border-color .12s ease, background-color .12s ease, color .12s ease;
@@ -108,20 +127,13 @@ button.affair-item:active { transform: translateY(0); box-shadow: 0 2px 6px rgba
 .affair-item:focus-visible,
 button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outline-offset: 2px; }
 
-/* 橘/紅（沿用你的設定，不變） */
+/* 橘/紅（沿用你的變數，不變） */
 .affair-item.warn,   button.affair-item.warn   { border-color: var(--warn-bd, #f59e0b); background: var(--warn-bg, #fff7ed); color: var(--warn-fg, #b45309); }
 .affair-item.danger, button.affair-item.danger { border-color: var(--danger-bd, #ef4444); background: var(--danger-bg, #fee2e2); color: var(--danger-fg, #991b1b); }
 
-/* 完成狀態（預留） */
-.affair-item.is-done, button.affair-item.is-done {
-  background: var(--done-bg, #ecfdf5);
-  border-color: var(--done-bd, #10b981);
-  color: #065f46;
-  text-decoration: line-through;
-}
 
 /* =========================================================
-   新增按鈕（與專案頁一致，收斂一點）
+   5) 新增按鈕（與專案頁一致）
    ========================================================= */
 #view-reminders .card-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 #view-reminders .function-buttons { display: flex; align-items: center; }
@@ -129,11 +141,21 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
 #view-reminders .function-buttons button {
   all: unset;
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px 10px; border-radius: 8px; border: 1px solid #d1d5db;
-  background: #fff; color: #111827; cursor: pointer; font-size: 14px; line-height: 1; user-select: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
 }
 #view-reminders #addAffairBtn {
-  border-color: var(--primary); color: var(--primary); background: #fff; font-weight: 600;
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #fff;
+  font-weight: 600;
   transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 #view-reminders #addAffairBtn:hover { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,.06); }
@@ -141,30 +163,67 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
 #view-reminders #addAffairBtn:active { box-shadow: 0 2px 6px rgba(0,0,0,.05); }
 #view-reminders #addAffairBtn:disabled { opacity: .5; cursor: not-allowed; }
 
+
 /* =========================================================
-   新增事務 Modal（雙欄）
+   6) 新增事務 Modal（雙欄）
    ========================================================= */
-#affairModal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.35); }
-#affairModal .modal-panel { width: min(720px, 92vw); background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 16px; }
+#affairModal {
+  position: fixed; inset: 0; z-index: 50;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.35);
+}
+#affairModal .modal-panel {
+  width: min(720px, 92vw);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  padding: 16px;
+}
 #affairModal .modal-title { font-weight: 700; font-size: 18px; margin: 0 0 8px 0; color: var(--text, #111827); }
 #affairModal .modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
 #affairModal .modal-body .form-col-2 { grid-column: 1 / -1; }
 #affairModal .modal-body label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text, #111827); }
-#affairModal input[type="text"], #affairModal input[type="number"], #affairModal select, #affairModal textarea {
-  width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; line-height: 1.4; box-sizing: border-box; background: #fff; color: #111827;
+#affairModal input[type="text"],
+#affairModal input[type="number"],
+#affairModal select,
+#affairModal textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+  background: #fff;
+  color: #111827;
 }
 #affairModal textarea { resize: vertical; min-height: 96px; }
 #affairModal .modal-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
 #affairModal .modal-actions button {
-  all: unset; display: inline-flex; align-items: center; justify-content: center;
-  padding: 6px 12px; border-radius: 8px; line-height: 1; border: 1px solid #d1d5db; background: #fff; color: #111827;
-  font-size: 14px; cursor: pointer; user-select: none; transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  all: unset;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  line-height: 1;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
 #affairModal #af_submit { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
 #affairModal .modal-actions button:hover { opacity: .9; }
-@media (max-width: 520px) { #affairModal .modal-panel { width: 92vw; padding: 12px; } #affairModal .modal-body { grid-template-columns: 1fr; } }
+@media (max-width: 520px){
+  #affairModal .modal-panel { width: 92vw; padding: 12px; }
+  #affairModal .modal-body { grid-template-columns: 1fr; }
+}
 
-/* ===== SweetAlert2：事務詳情彈窗（Affair Detail Popup） ===== */
+
+/* =========================================================
+   7) SweetAlert2：事務詳情彈窗（Affair Detail Popup）
+   ========================================================= */
 .af-wrap{ padding:10px 6px 6px 6px; }
 
 .af-head{
@@ -179,8 +238,6 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   font-weight:800;
   color:#111827;
 }
-
-/* 右上角 icon 區 */
 .af-actions{
   position:absolute;
   right:0;
@@ -190,7 +247,7 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   gap:10px;
 }
 
-/* 局部覆寫：避免彈窗內的 .action-btn 太小或太大 */
+/* 彈窗內 action-btn（只影響彈窗） */
 .af-actions .action-btn{
   width:34px;
   height:34px;
@@ -202,7 +259,7 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   border-radius:10px;
 }
 
-/* 內容區：左 label、右內容框 */
+/* 內容區 */
 .af-grid{
   display:grid;
   grid-template-columns:70px 1fr;
@@ -232,7 +289,7 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   white-space:pre-wrap;
 }
 
-/* 編輯狀態：輸入框 */
+/* 編輯輸入框 */
 .af-input, .af-textarea{
   width:100%;
   border:1px solid #d1d5db;
@@ -250,7 +307,7 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   line-height:1.6;
 }
 
-/* 截止日期：正常排版 */
+/* 底部 */
 .af-meta{
   display:flex;
   justify-content:flex-end;
@@ -260,8 +317,6 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   font-size:13px;
   color:#6b7280;
 }
-
-/* 底部關閉 */
 .af-foot{
   display:flex;
   justify-content:flex-end;
@@ -277,134 +332,172 @@ button.affair-item:focus-visible { outline: 2px solid rgba(59,130,246,.25); outl
   cursor:pointer;
 }
 .af-close:hover{ background:#f9fafb; }
-
 .af-hidden{ display:none !important; }
 
+
 /* =========================================================
-   Reminders 詳細頁：真正全寬版（解決你目前「卡在左邊第一欄」問題）
+   8) 詳細頁：本體排版（這段就是你第一張的「原本樣子」）
+   =========================================================
+   - 只負責：標題區、回列表位置、表格、列 hover
+   - full-width 的「不卡在第一欄」邏輯在下一段（第 9 段）
+   ========================================================= */
+.rem-detail{ width:100%; }
+
+.rem-detail__top{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 6px 0 14px;
+}
+.rem-detail__title{
+  font-size:22px;
+  font-weight:900;
+  line-height:1.1;
+}
+.rem-detail__meta{
+  margin-top:6px;
+  font-size:12px;
+  color:#6b7280;
+}
+.rem-detail__back{
+  cursor:pointer;
+  text-decoration:none;
+  color:inherit;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+/* 表格外框 */
+.rem-detail__table{
+  width:100%;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+}
+
+/* 表頭/每列：欄寬（原本注入版） */
+.rem-detail__head,
+.rem-detail__row{
+  display:grid;
+  grid-template-columns: 200px 1fr 140px 96px; /* 案名 / 內容 / 截止 / 操作 */
+  align-items:center;
+  gap:0;
+}
+.rem-detail__head{
+  padding:10px 12px;
+  font-weight:900;
+  font-size:13px;
+  background:#f9fafb;
+  border-bottom:1px solid #e5e7eb;
+}
+.rem-detail__body .rem-detail__row{
+  padding:10px 12px;
+  font-size:13px;
+  border-bottom:1px solid #e5e7eb;
+  cursor:pointer;
+  user-select:none;
+}
+.rem-detail__body .rem-detail__row:hover{ background:#f9fafb; }
+.rem-detail__body .rem-detail__row:last-child{ border-bottom:none; }
+
+/* 三欄文字：單行省略（第一張的感覺） */
+.rem-col--title{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.rem-col--content{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.rem-col--deadline{ white-space:nowrap; }
+
+/* 操作欄 */
+.rem-col--actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+
+/* 詳細頁操作按鈕：清掉預設灰底/方塊，只限 actions 欄 */
+.rem-col--actions button{
+  all: unset;
+  box-sizing: border-box;
+}
+.rem-col--actions .action-btn{
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
+  font-size: 16px;
+
+  transition: box-shadow .12s ease, transform .05s ease, background-color .12s ease, border-color .12s ease;
+}
+.rem-col--actions .action-btn:hover{
+  background: #f9fafb;
+  box-shadow: 0 4px 10px rgba(0,0,0,.06);
+  transform: translateY(-0.5px);
+}
+.rem-col--actions .action-btn:active{
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
+}
+.rem-col--actions .action-btn:focus-visible{
+  outline: 2px solid rgba(59,130,246,.25);
+  outline-offset: 2px;
+}
+
+/* 手機欄寬縮放（原本注入版） */
+@media (max-width: 720px){
+  .rem-detail__head,
+  .rem-detail__row{
+    grid-template-columns: 140px 1fr 110px 80px;
+  }
+}
+@media (max-width: 520px){
+  .rem-detail__head,
+  .rem-detail__row{
+    grid-template-columns: 120px 1fr 92px 72px;
+  }
+}
+
+
+/* =========================================================
+   9) 詳細頁：全寬（不再卡在 person-grid 第一欄）
+   =========================================================
    根因：
-   - #remindersGrid 目前套用 .person-grid（桌機 5 欄）
-   - 詳細頁 .rem-detail 被當成 grid item → 只能佔第一欄 → 右邊整片空白
+   - #remindersGrid 仍然套用 .person-grid（桌機 5 欄）
+   - .rem-detail 會被當成 grid item → 只佔第一欄 → 右邊空白
+
    解法：
-   - 當 #remindersGrid 內出現 .rem-detail 時：
-     1) 把 #remindersGrid 從 5 欄 grid 變成單欄（display:block）
-     2) 解除外層 .card 的 max-width / padding，讓內容撐滿
-     3) 詳細頁表格欄位變寬鬆，內容欄允許多行
-     4) 詳細頁「操作」按鈕做成和專案頁一致的 action-btn 外觀（避免灰底方塊）
+   - 詳細頁時，把 #remindersGrid 從 grid 切回 block
+   - 但「不改 .card」，保留你第一張的 card 內距/陰影
+   - 同時提供 :has() 與 fallback（.is-detail）兩種觸發
    ========================================================= */
 
-/* --- 只在支援 :has() 的瀏覽器啟用（Chrome/Edge/Safari 新版 OK） --- */
+/* --- A) 支援 :has() 的瀏覽器 --- */
 @supports selector(#remindersGrid:has(.rem-detail)) {
-
-  /* 1) 最重要：詳細頁時，關掉 person-grid 的 5 欄 */
   #remindersGrid.person-grid:has(.rem-detail){
-    display: block !important;     /* 不再是 grid，內容就能吃滿全寬 */
-    width: 100% !important;
+    display:block !important;
+    width:100% !important;
   }
+}
 
-  /* 2) 詳細頁：解除外層 card 的限寬與 padding（避免看起來像小卡片） */
-  #view-reminders:has(.rem-detail) .card{
-    max-width: none !important;
-    width: 100% !important;
-    margin: 0 !important;
-
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-  }
-
-  /* 3) 詳細頁容器撐滿 */
-  #remindersGrid:has(.rem-detail) .rem-detail{
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  /* 4) 詳細頁表格撐滿（外觀更像專案頁） */
-  #remindersGrid:has(.rem-detail) .rem-detail__table{
-    width: 100% !important;
-    max-width: none !important;
-    border-radius: 14px;
-    overflow: hidden; /* 讓圓角有效（列 hover 不會溢出） */
-  }
-
-  /* 5) 桌機欄位更寬鬆：案名/截止/操作加寬，不要擠 */
-  @media (min-width: 900px){
-    #remindersGrid:has(.rem-detail) .rem-detail__head,
-    #remindersGrid:has(.rem-detail) .rem-detail__row{
-      grid-template-columns: 280px 1fr 190px 140px; /* 案名 / 內容 / 截止 / 操作 */
-    }
-  }
-
-  /* 6) 內容欄允許多行顯示（你要「一列一列」但內容不要擠成省略號） */
-  #remindersGrid:has(.rem-detail) .rem-col--content{
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    line-height: 1.55;
-  }
-
-  /* 7) 每列 padding 增加，整體更舒適 */
-  #remindersGrid:has(.rem-detail) .rem-detail__body .rem-detail__row{
-    padding: 12px 14px;
-  }
-
-  /* 8) 回列表不要卡在中間（你原本覺得怪的那個） */
-  #remindersGrid:has(.rem-detail) .rem-detail__top{
-    margin-top: 0;
-  }
-
-  /* =========================================================
-     9) 操作欄位（✏️ / ✅)
-     - 只影響 reminders 詳細頁，不影響 SweetAlert / 其他頁
-     ========================================================= */
-
-  /* 9-1) 先把按鈕的瀏覽器預設樣式清掉（最關鍵） */
-  #remindersGrid:has(.rem-detail) .rem-col--actions button{
-    all: unset;
-    box-sizing: border-box;
-  }
-
-  /* 9-2) 操作欄位對齊（像專案頁：靠右、固定間距） */
-  #remindersGrid:has(.rem-detail) .rem-col--actions{
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-
-  /* 9-3) action-btn 外觀（與你專案頁一致的「白底＋灰框＋圓角＋hover陰影」） */
-  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn{
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    background: #ffffff;
-
-    cursor: pointer;
-    user-select: none;
-    line-height: 1;
-    font-size: 16px;
-
-    transition: box-shadow .12s ease, transform .05s ease, background-color .12s ease, border-color .12s ease;
-  }
-
-  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:hover{
-    background: #f9fafb;
-    box-shadow: 0 4px 10px rgba(0,0,0,.06);
-    transform: translateY(-0.5px);
-  }
-
-  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:active{
-    transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(0,0,0,.05);
-  }
-
-  #remindersGrid:has(.rem-detail) .rem-col--actions .action-btn:focus-visible{
-    outline: 2px solid rgba(59,130,246,.25);
-    outline-offset: 2px;
-  }
+/* --- B) Fallback：不支援 :has() 時用 JS 加 class 觸發 --- */
+#view-reminders.is-detail #remindersGrid.person-grid,
+#view-reminders.is-detail #remindersGrid.is-detail{
+  display:block !important;
+  width:100% !important;
 }

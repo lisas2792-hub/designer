@@ -24,14 +24,87 @@
 // - /assets/js/api.js（api、toUserMessage）
 // - SweetAlert2：home.html 載入 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 //
-// 注意：
-// - 詳細頁的排版「跑版」通常是因為缺少專用 CSS；本版會在 JS 中「注入一段 scoped CSS」
-//   (只作用在 .rem-detail 容器內) 以避免影響你其他頁面與既有 reminders.css。
+// 
+// 驗證順序改為：內容 content → 指派對象 assignee → 期限 due_days → 案名 title（可略）
 // ============================================================================
 
 import { api, toUserMessage } from "../api.js";
 
-const MAX_VISIBLE = 9; // 總覽每人最多顯示 9 條（3×3）
+/* =========================================================
+ * 0) 通用提示（優先 Swal，fallback alert）
+ * ========================================================= */
+async function uiWarn(msg) {
+  if (typeof Swal !== "undefined") {
+    await Swal.fire({
+      icon: "warning",
+      title: "提醒",
+      text: String(msg || ""),
+      confirmButtonText: "知道了",
+    });
+  } else {
+    alert(String(msg || ""));
+  }
+}
+
+async function uiError(title, msg) {
+  if (typeof Swal !== "undefined") {
+    await Swal.fire({
+      icon: "error",
+      title: String(title || "錯誤"),
+      text: String(msg || ""),
+      confirmButtonText: "知道了",
+    });
+  } else {
+    alert(`${title || "錯誤"}\n${msg || ""}`);
+  }
+}
+
+/* =========================================================
+ * 1) 總覽顯示數（解法三）
+ * - 桌機：最多 9（3×3）
+ * - 手機：最多 6（避免卡片被塞爆造成溢出）
+ * - 斷點：720px（可依實機調整）
+ * ========================================================= */
+const MAX_VISIBLE_DESKTOP = 9;
+const MAX_VISIBLE_MOBILE = 6;
+const MQ_MOBILE = window.matchMedia("(max-width: 720px)");
+
+function getMaxVisibleOverview() {
+  return MQ_MOBILE.matches ? MAX_VISIBLE_MOBILE : MAX_VISIBLE_DESKTOP;
+}
+
+/* =========================================================
+ * 2) Overview 小樣式注入（只影響 reminders 總覽）
+ * - 目的：手機的「+N」看起來像提示，不像大按鈕
+ * - 安全：只注入一次；scope 在 .person-card
+ * ========================================================= */
+function ensureOverviewStylesInjected() {
+  if (document.getElementById("remOverviewStyles")) return;
+
+  const style = document.createElement("style");
+  style.id = "remOverviewStyles";
+  style.textContent = `
+    /* ============================
+     * Reminders Overview (scoped)
+     * ============================ */
+    .person-card .affair-more-row{
+      display:flex;
+      justify-content:flex-end;
+      margin-top:8px;
+    }
+    @media (max-width: 720px){
+      .person-card .affair-more-btn{
+        padding:4px 10px;
+        border-radius:999px;
+        font-size:12px;
+        line-height:1;
+        border:1px solid #e5e7eb;
+        background:#fff;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 let loadedOnce = false;
 let rendering = false;
@@ -98,6 +171,27 @@ function ensureRemindersViewShown() {
   // 直接進 /reminders 時，確保側欄 view 切到 reminders（home.js 管 active/display/title）
   const btn = document.querySelector('.nav button[data-view="reminders"]');
   if (btn && !btn.classList.contains("active")) btn.click();
+}
+
+/* =========================================================
+ * 3) 詳細頁模式 class 切換（避免依賴 :has()）
+ * - 進詳細頁：#view-reminders.is-detail + #remindersGrid.is-detail
+ * - 回總覽：移除 class，恢復 person-grid
+ * ========================================================= */
+function ensureRemindersDetailMode(on) {
+  const view = document.getElementById("view-reminders");
+  const grid = document.getElementById("remindersGrid");
+  if (!grid) return;
+
+  if (on) {
+    view?.classList.add("is-detail");
+    grid.classList.add("is-detail");
+    grid.classList.remove("person-grid"); // 詳細頁不要多欄 grid
+  } else {
+    view?.classList.remove("is-detail");
+    grid.classList.remove("is-detail");
+    grid.classList.add("person-grid"); // 總覽要多欄 grid
+  }
 }
 
 function getDetailUserIdFromUrl() {
@@ -227,12 +321,12 @@ function openAffairDetailPopup(rowEl) {
 
       let editMode = false;
 
-      const btnEdit  = root.querySelector('[data-action="edit"]');
-      const btnDone  = root.querySelector('[data-action="done"]');
+      const btnEdit = root.querySelector('[data-action="edit"]');
+      const btnDone = root.querySelector('[data-action="done"]');
       const btnClose = root.querySelector('[data-action="close"]');
 
-      const viewTitle   = root.querySelector('[data-view="title"]');
-      const editTitle   = root.querySelector('[data-edit="title"]');
+      const viewTitle = root.querySelector('[data-view="title"]');
+      const editTitle = root.querySelector('[data-edit="title"]');
       const viewContent = root.querySelector('[data-view="content"]');
       const editContent = root.querySelector('[data-edit="content"]');
 
@@ -472,21 +566,31 @@ function personCardHtml(p, openCount = 0) {
 }
 
 function applyVisibleLimit(listEl, moreBtn) {
+  // ✅ 動態：手機顯示較少，桌機顯示較多
+  const limit = getMaxVisibleOverview();
+
   const expanded = (listEl.dataset.expanded === "true");
   const items = Array.from(listEl.querySelectorAll(".affair-item"));
   const total = items.length;
-  const overflow = Math.max(0, total - MAX_VISIBLE);
+  const overflow = Math.max(0, total - limit);
 
   items.forEach((el, idx) => {
-    el.style.display = expanded ? "" : (idx < MAX_VISIBLE ? "" : "none");
+    el.style.display = expanded ? "" : (idx < limit ? "" : "none");
   });
 
   const card = listEl.closest(".person-card");
   if (card) card.classList.toggle("has-more", overflow > 0);
 
+  // ✅ 文案策略
+  // - 桌機：顯示更多（+N） / 收起
+  // - 手機：收合時顯示 +N，展開時顯示 收起
   if (overflow > 0) {
     moreBtn.style.display = "inline-flex";
-    moreBtn.textContent = expanded ? "收起" : `顯示更多（+${overflow}）`;
+    if (expanded) {
+      moreBtn.textContent = "收起";
+    } else {
+      moreBtn.textContent = MQ_MOBILE.matches ? `+${overflow}` : `顯示更多（+${overflow}）`;
+    }
   } else {
     moreBtn.style.display = "none";
   }
@@ -539,127 +643,10 @@ function groupByAssignee(openRows) {
 }
 
 // ----------------------------------------------------------------------------
-// 詳細頁排版：為避免「跑版」，在 JS 內注入一段 scoped CSS（只作用於 .rem-detail）
-// ----------------------------------------------------------------------------
-function ensureDetailStylesInjected() {
-  if (document.getElementById("remDetailStyles")) return;
-
-  const style = document.createElement("style");
-  style.id = "remDetailStyles";
-  style.textContent = `
-    /* ============================
-     * Reminders Detail (scoped)
-     * 只作用在 .rem-detail 容器內
-     * ============================ */
-    .rem-detail{
-      width:100%;
-    }
-
-    .rem-detail__top{
-      display:flex;
-      align-items:flex-end;
-      justify-content:space-between;
-      gap:12px;
-      margin: 6px 0 14px;
-    }
-    .rem-detail__title{
-      font-size:22px;
-      font-weight:900;
-      line-height:1.1;
-    }
-    .rem-detail__meta{
-      margin-top:6px;
-      font-size:12px;
-      color:#6b7280;
-    }
-    .rem-detail__back{
-      cursor:pointer;
-      text-decoration:none;
-      color:inherit;
-      font-weight:700;
-      white-space:nowrap;
-    }
-
-    .rem-detail__table{
-      width:100%;
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      overflow:hidden;
-      background:#fff;
-    }
-
-    .rem-detail__head,
-    .rem-detail__row{
-      display:grid;
-      grid-template-columns: 200px 1fr 140px 96px; /* 案名 / 內容 / 截止 / 操作 */
-      align-items:center;
-      gap:0;
-    }
-
-    .rem-detail__head{
-      padding:10px 12px;
-      font-weight:900;
-      font-size:13px;
-      background:#f9fafb;
-      border-bottom:1px solid #e5e7eb;
-    }
-
-    .rem-detail__body .rem-detail__row{
-      padding:10px 12px;
-      font-size:13px;
-      border-bottom:1px solid #e5e7eb;
-      cursor:pointer;
-      user-select:none;
-    }
-    .rem-detail__body .rem-detail__row:hover{
-      background:#f9fafb;
-    }
-    .rem-detail__body .rem-detail__row:last-child{
-      border-bottom:none;
-    }
-
-    .rem-col--title{
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .rem-col--content{
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .rem-col--deadline{
-      white-space:nowrap;
-    }
-
-    .rem-col--actions{
-      display:flex;
-      justify-content:flex-end;
-      gap:10px;
-    }
-
-    /* 手機：縮欄寬，避免整頁炸裂 */
-    @media (max-width: 720px){
-      .rem-detail__head,
-      .rem-detail__row{
-        grid-template-columns: 140px 1fr 110px 80px;
-      }
-    }
-    @media (max-width: 520px){
-      /* 更小：把截止日期縮到 92px，操作縮到 72px */
-      .rem-detail__head,
-      .rem-detail__row{
-        grid-template-columns: 120px 1fr 92px 72px;
-      }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
-// ----------------------------------------------------------------------------
 // 詳細頁渲染（整頁、橫向列、最後一欄 icon）
 // ----------------------------------------------------------------------------
 function renderUserDetail({ userId, persons, openRows }) {
-  ensureDetailStylesInjected();
+  ensureRemindersDetailMode(true);
 
   const grid = document.getElementById("remindersGrid");
   if (!grid) return;
@@ -681,11 +668,9 @@ function renderUserDetail({ userId, persons, openRows }) {
   const count = rows.length;
   const isAdmin = (window.__ME__?.role === "admin");
 
-  // 操作 icon（符合你要「像專案那樣最後面」）
   const ICON_EDIT = "✏️";
   const ICON_DONE = "✅";
 
-  // ✅ 不包 card，直接整頁內容
   grid.innerHTML = `
     <div class="rem-detail" data-user="${esc(userId)}">
       <div class="rem-detail__top">
@@ -728,9 +713,8 @@ function renderUserDetail({ userId, persons, openRows }) {
     const deadline = computeDeadlineYmd(r.created_at, r.due_days).replaceAll("-", "/");
 
     const row = document.createElement("div");
-    row.className = "rem-detail__row rem-detail-row"; // rem-detail-row：讓彈窗更新欄位用
+    row.className = "rem-detail__row rem-detail-row";
 
-    // dataset：彈窗/完成/編輯共用
     row.dataset.id = r.id;
     row.dataset.assigneeId = r.assignee_id;
     row.dataset.title = r.title || "";
@@ -774,11 +758,11 @@ async function renderReminders({ force = false } = {}) {
     cachedReminders = openRows;
 
     if (!persons.length) {
+      ensureRemindersDetailMode(false);
       grid.innerHTML = `<div class="empty">目前沒有可顯示的使用者</div>`;
       return;
     }
 
-    // 詳細模式
     const detailUserId = getDetailUserIdFromUrl();
     if (detailUserId) {
       renderUserDetail({ userId: detailUserId, persons, openRows });
@@ -787,6 +771,8 @@ async function renderReminders({ force = false } = {}) {
     }
 
     // 總覽模式
+    ensureRemindersDetailMode(false);
+
     const grouped = groupByAssignee(openRows);
 
     grid.innerHTML = persons.map((p) => {
@@ -810,6 +796,7 @@ async function renderReminders({ force = false } = {}) {
     loadedOnce = true;
   } catch (err) {
     console.error(err);
+    ensureRemindersDetailMode(false);
     grid.innerHTML = `<div class="error">${esc(toUserMessage(err, "無法載入事務提醒"))}</div>`;
   } finally {
     rendering = false;
@@ -853,19 +840,41 @@ function closeAffairModal() {
   m.style.display = "none";
 }
 
+/**
+ * ✅ 依你指定的順序驗證：
+ * 內容 content → 指派對象 assignee → 期限 due_days → 案名 title（可略）
+ */
 async function submitAffair() {
   const title = (document.getElementById("af_title")?.value || "").trim();
   const content = (document.getElementById("af_content")?.value || "").trim();
-  const assigneeId = document.getElementById("af_assignee")?.value;
-  const dueDays = Number(document.getElementById("af_due")?.value);
+  const assigneeId = (document.getElementById("af_assignee")?.value || "").trim();
+  const dueDaysRaw = (document.getElementById("af_due")?.value || "").trim();
+  const dueDays = Number(dueDaysRaw);
 
-  if (!assigneeId) { alert("請選擇指派對象"); return; }
-  if (!Number.isInteger(dueDays) || dueDays <= 0) { alert("期限天數需為正整數且 ≥ 1"); return; }
+  // 1) content 必填（第一優先）
+  if (!content) {
+    await uiWarn("請輸入內容");
+    return;
+  }
+
+  // 2) assignee 必填
+  if (!assigneeId) {
+    await uiWarn("請選擇指派對象");
+    return;
+  }
+
+  // 3) due_days 必填且 >= 1
+  if (!Number.isInteger(dueDays) || dueDays < 1) {
+    await uiWarn("請輸入期限天數（至少 1 天）");
+    return;
+  }
 
   try {
     const body = {
-      title: title || null,
-      content: content || null,
+      // title 可空：空白送 null
+      title: title ? title : null,
+      // content 不可空：一律送字串
+      content: content,
       assignee_id: Number(assigneeId),
       due_days: dueDays,
       status: "open",
@@ -879,14 +888,29 @@ async function submitAffair() {
     });
 
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || j?.ok === false) throw new Error(j?.error || j?.message || "新增失敗");
+    if (!r.ok || j?.ok === false) {
+      // 後端錯誤碼也盡量轉中文
+      const code = String(j?.error || j?.message || "新增失敗");
+      if (code === "CONTENT_REQUIRED") {
+        await uiWarn("請輸入內容");
+        return;
+      }
+      if (code === "INVALID_ASSIGNEE") {
+        await uiWarn("請選擇指派對象");
+        return;
+      }
+      if (code === "INVALID_DUE_DAYS") {
+        await uiWarn("請輸入期限天數（至少 1 天）");
+        return;
+      }
+      throw new Error(code);
+    }
 
-    // 最穩：重畫（避免排序/計數/顯示更多狀態不一致）
     await renderReminders({ force: true });
     closeAffairModal();
   } catch (err) {
     console.error(err);
-    alert(toUserMessage(err, "新增失敗，請稍後再試"));
+    await uiError("新增失敗", toUserMessage(err, "新增失敗，請稍後再試"));
   }
 }
 
@@ -916,9 +940,33 @@ function wireAffairModal() {
 // ----------------------------------------------------------------------------
 // 綁定：總覽/詳細互動（事件代理，一次綁定即可）
 // ----------------------------------------------------------------------------
+function reapplyAllOverviewLimits() {
+  document.querySelectorAll(".person-card .affair-list").forEach((listEl) => {
+    const card = listEl.closest(".person-card");
+    const moreBtn = card?.querySelector(".affair-more-btn");
+    if (moreBtn) applyVisibleLimit(listEl, moreBtn);
+  });
+}
+
 function wireListInteractions() {
   if (window.__AFFAIR_LIST_WIRED__) return;
   window.__AFFAIR_LIST_WIRED__ = true;
+
+  // ✅ 初次注入 overview 小樣式（避免 ensureOverviewStylesInjected 未定義導致中斷）
+  ensureOverviewStylesInjected();
+
+  // ✅ 手機旋轉/縮放時，重新計算顯示數
+  if (!window.__REM_OVERVIEW_MQ_WIRED__) {
+    window.__REM_OVERVIEW_MQ_WIRED__ = true;
+
+    if (typeof MQ_MOBILE.addEventListener === "function") {
+      MQ_MOBILE.addEventListener("change", () => reapplyAllOverviewLimits());
+    } else if (typeof MQ_MOBILE.addListener === "function") {
+      MQ_MOBILE.addListener(() => reapplyAllOverviewLimits());
+    }
+
+    window.addEventListener("resize", () => reapplyAllOverviewLimits(), { passive: true });
+  }
 
   document.addEventListener("click", async (e) => {
     // 1) 點帳號名 → 進詳細頁
@@ -933,7 +981,7 @@ function wireListInteractions() {
       return;
     }
 
-    // 2) 總覽：顯示更多
+    // 2) 總覽：顯示更多 / 收起
     const more = e.target.closest(".affair-more-btn");
     if (more) {
       const card = more.closest(".person-card");
@@ -949,7 +997,7 @@ function wireListInteractions() {
       return;
     }
 
-    // 4) 詳細：點「完成」→ 直接完成（不開彈窗）
+    // 4) 詳細：點「完成」→ 先確認，再完成（不開彈窗）
     const doneBtn = e.target.closest(".rem-detail-done");
     if (doneBtn) {
       e.preventDefault();
@@ -960,11 +1008,28 @@ function wireListInteractions() {
 
       const reminderId = row.dataset.id;
 
+      let confirmed = false;
+      if (typeof Swal !== "undefined") {
+        const res = await Swal.fire({
+          title: "確認完成？",
+          text: "完成後此事務會從未完成清單移除。",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "完成",
+          cancelButtonText: "取消",
+          reverseButtons: true,
+        });
+        confirmed = !!res.isConfirmed;
+      } else {
+        confirmed = window.confirm("確認完成？\n完成後此事務會從未完成清單移除。");
+      }
+
+      if (!confirmed) return;
+
       try {
         await completeReminder(reminderId);
         row.remove();
 
-        // 更新未完成數
         const cntEl = document.getElementById("detailOpenCount");
         if (cntEl) {
           const n = Number(cntEl.dataset.count || cntEl.textContent || 0);
@@ -976,26 +1041,29 @@ function wireListInteractions() {
         cachedReminders = (cachedReminders || []).filter(r => String(r.id) !== String(reminderId));
       } catch (err) {
         console.error(err);
-        alert(toUserMessage(err, "完成失敗"));
+        const msg = toUserMessage(err, "完成失敗");
+        if (typeof Swal !== "undefined") {
+          Swal.fire({ icon: "error", title: "完成失敗", text: msg });
+        } else {
+          alert(msg);
+        }
       }
       return;
     }
 
-    // 5) 詳細：點「編輯」→ 開彈窗（由彈窗內做編輯儲存）
+    // 5) 詳細：點「編輯」→ 開彈窗
     const editBtn = e.target.closest(".rem-detail-edit");
     if (editBtn) {
       e.preventDefault();
       e.stopPropagation();
-
       const row = editBtn.closest(".rem-detail-row");
       if (row) openAffairDetailPopup(row);
       return;
     }
 
-    // 6) 詳細：點列 → 開彈窗
+    // 6) 詳細：點列 → 開彈窗（點到操作欄不算）
     const detailRow = e.target.closest(".rem-detail-row");
     if (detailRow) {
-      // 若點在操作欄內，不要再觸發列點擊
       if (e.target.closest(".rem-col--actions")) return;
       openAffairDetailPopup(detailRow);
       return;

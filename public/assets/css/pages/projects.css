@@ -8,6 +8,11 @@
  * ⚠️ 重要：不要在這支檔案對 main/body/html 設 overflow
  *          寬度穩定（捲軸 gutter）請統一在 app.css 的 html 處理
  *          否則會出現「兩條捲軸」。
+ *
+ * ✅ 本次修正：
+ * - 你的 #createModal 不在 #view-projects 裡（見 home.html）
+ *   所以原本 `#view-projects #f_submit` 套不到，造成送出/取消按鈕樣式漂移。
+ * - 改成精準 scope：#createModal .modal-actions #f_cancel/#f_submit
  * ====================================================================== */
 
 #view-projects{
@@ -148,16 +153,15 @@
   max-width:520px;
   text-align:right;
 
-  /* 避免太長換行導致高度突然變兩行而跳 */
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
 }
 #view-projects #unsavedNotice.is-visible{
-  display:block;                /* 顯示時把下面往下推 */
+  display:block;
 }
 
-/* 按鈕外觀 */
+/* 按鈕外觀（右上工具列） */
 #view-projects #addProjectBtn{
   padding:6px 12px;
   border:1px solid var(--primary);
@@ -198,16 +202,13 @@
   border-bottom:1px solid var(--line);
 }
 
-/* 預設文字對齊 */
 #view-projects .grid-header div{ text-align:center; }
 #view-projects .grid-header div:nth-child(1),
 #view-projects .grid-header div:nth-child(2),
 #view-projects .grid-header div:nth-child(3){ text-align:left; }
 
-/* 你不想顯示任務表頭，但要保留欄位對齊 */
 #view-projects .grid-header .task-head{ visibility:hidden; }
 
-/* 右側三個動作欄位表頭：純占位 */
 #view-projects .grid-header .action-head{
   background:transparent;
   border:none;
@@ -245,7 +246,7 @@
   font-size:14px;
 }
 
-/* 已完成 badge（你的 JS 在 done/all 會 innerHTML 替換成這個） */
+/* 已完成 badge */
 #view-projects .cell-stage .badge-done{
   display:flex;
   align-items:center;
@@ -323,21 +324,49 @@
 #view-projects .action-btn:active{ transform: translateY(1px); }
 #view-projects .action-btn[disabled]{ opacity:.5; pointer-events:none; }
 
-/* Modal 送出按鈕（scope 避免影響其他頁） */
-#view-projects #f_submit{
-  background:var(--primary);
-  color:#fff;
-  border:1px solid var(--primary);
+/* =========================================================
+ * ✅ Project Create/Edit Modal Buttons（精準 scope）
+ * - 你的 modal 在 #createModal（不在 #view-projects 內）
+ * - 修正：送出/取消外觀不一致
+ * ========================================================= */
+#createModal .modal-actions #f_cancel,
+#createModal .modal-actions #f_submit{
   padding:8px 12px;
   border-radius:8px;
   cursor:pointer;
+  font-weight:600;
+  border:1px solid transparent; /* 先給預設，下面覆蓋 */
+}
+
+/* 取消：outline */
+#createModal .modal-actions #f_cancel{
+  background:#fff;
+  color:var(--primary);
+  border-color:var(--primary);
+}
+
+/* 送出：primary */
+#createModal .modal-actions #f_submit{
+  background:var(--primary);
+  color:#fff;
+  border-color:var(--primary);
+}
+
+/* hover/active（小手感，不影響其他頁） */
+#createModal .modal-actions #f_cancel:hover,
+#createModal .modal-actions #f_submit:hover{
+  opacity:.92;
+}
+#createModal .modal-actions #f_cancel:active,
+#createModal .modal-actions #f_submit:active{
+  transform: translateY(1px);
 }
 
 /* =========================================================
  * 切 tab 不跳：legend 在 done/all 隱形但佔位
  * ========================================================= */
 #view-projects #legendBar{
-  min-height: 34px; /* 你可依視覺調 32~40 */
+  min-height: 34px;
 }
 #view-projects #legendBar.is-hidden{
   visibility:hidden;
@@ -349,28 +378,22 @@
  * ========================= */
 @media (max-width: 900px){
 
-  /* 1) 卡片外層不要把橫向滑動剪掉 */
   #view-projects .card{
     overflow: visible;
   }
 
-  /* 2) 給表格一個「可橫向滑動的容器」：直接作用在 projectsGrid */
   #view-projects #projectsGrid{
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-
-    /* 視覺：左右滑的區塊留一點底部空間 */
     padding-bottom: 8px;
   }
 
-  /* 3) 讓表頭跟每一列有固定最小寬度，確保 8 階段不被擠爛 */
   #view-projects .grid-header,
   #view-projects .project-row{
-    min-width: 1100px; /* 可依你的欄寬微調：1000~1400 之間 */
+    min-width: 1100px;
   }
 
-  /* 4) 手機上縮小欄寬（可選，但建議） */
   #view-projects{
     --side-stage: 64px;
     --side-id: 88px;
@@ -380,13 +403,11 @@
     --action-col: 34px;
   }
 
-  /* 5) 避免 legend/按鈕擠爆：允許換行（你目前 button 列是 nowrap） */
   #view-projects .function-buttons > div{
     flex-wrap: wrap;
     white-space: normal;
   }
 
-  /* 6) 提示文字若過長，手機可以換行（你目前是 nowrap） */
   #view-projects #unsavedNotice{
     white-space: normal;
     max-width: 100%;
