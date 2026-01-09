@@ -17,7 +17,8 @@ RUN npm install --only=production
 COPY . .
 
 # Cloud Run 會透過 PORT 環境變數指定要聽的 port
-ENV PORT=8080
+# ENV PORT=8080    (Cloud Run 會自己注入 PORT) 
+# EXPOSE 只是文件化
 EXPOSE 8080
 
 # 啟動指令：要對應 package.json 的 "start": "node server.js"

@@ -1,0 +1,19 @@
+# Env files (絕對不要進 image)
+.env
+.env.*
+!.env.example
+
+# secrets / keys
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+
+# runtime / local artifacts
+.tmp
+node_modules
+npm-debug.log
+yarn.lock
+pnpm-lock.yaml
+.DS_Store
