@@ -8,7 +8,13 @@
 
 import { api } from "../api.js";
 import { initPasswordFeature } from "./password.js";
-import { initProjectsFeature } from "./projects.js";
+
+async function loadProjectsFeature() {
+  const v = encodeURIComponent(window.__BUILD_ID__ || "");
+  // projects.js URL 每次部署都變，必定重抓，不受 30d immutable 影響
+  const mod = await import(`./projects.js?v=${v}`);
+  return mod;
+}
 
 window.__ME__ = null;
 
@@ -126,6 +132,7 @@ async function navigateToView(nextKey, { replace = false } = {}) {
   }
 
   try {
+    const { initProjectsFeature } = await loadProjectsFeature();
     projectsController = initProjectsFeature();
   } catch (err) {
     console.error("[home] initProjectsFeature 失敗：", err);
