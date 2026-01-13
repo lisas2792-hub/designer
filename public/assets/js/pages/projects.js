@@ -900,7 +900,7 @@ export function initProjectsFeature() {
       uploadModal.style.display = "flex";
 
       try {
-        const data = await apiFetch(`/api/projects/${projectNo}/stages/${stageNo}/last`, { method: "GET" });
+        const data = await apiFetch(`/api/stageupload/projects/${projectNo}/stages/${stageNo}/last`, { method: "GET" });
 
         if (data?.ok && data.file) {
           const file = data.file;
@@ -938,7 +938,7 @@ export function initProjectsFeature() {
         const fd = new FormData();
         for (const f of uploadInput.files) fd.append("files", f);
 
-        const data = await apiFetch(`/api/projects/${current.projectNo}/stages/${current.stageNo}/upload`, {
+        const data = await apiFetch(`/api/stageupload/projects/${current.projectNo}/stages/${current.stageNo}/upload`, {
           method: "POST",
           body: fd,
           isMultipart: true,

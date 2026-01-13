@@ -260,13 +260,13 @@ export const api = {
   },
 
   /* ---------- 上傳（以 project + stage 為維度）---------- */
-  // ★ 這組是「跟你現在 home.js 寫死的 URL 對齊」：
-  //   GET  /api/projects/:projectNo/stages/:stageNo/last
-  //   POST /api/projects/:projectNo/stages/:stageNo/upload
+  // ★ 這組是「跟現在 home.js 寫死的 URL 對齊」：
+  //   GET  /api/stageupload/projects/:projectNo/stages/:stageNo/last
+  //   POST /api/stageupload/projects/:projectNo/stages/:stageNo/upload
   projectStages: {
     async getLastFile(projectNo, stageNo) {
       return await apiFetch(
-        `/api/projects/${encodeURIComponent(
+        `/api/stageupload/projects/${encodeURIComponent(
           projectNo
         )}/stages/${encodeURIComponent(stageNo)}/last`,
         { method: "GET" }
@@ -282,7 +282,7 @@ export const api = {
       }
 
       return await apiFetch(
-        `/api/projects/${encodeURIComponent(
+        `/api/stageupload/projects/${encodeURIComponent(
           projectNo
         )}/stages/${encodeURIComponent(stageNo)}/upload`,
         {
@@ -294,31 +294,20 @@ export const api = {
     },
   },
 
-  /* ---------- 舊版 stageupload（如果後端還保留，可當兼容用）---------- */
-  // ⚠️ 目前你的 home.js 沒在用這組，如果後端已經改成 /api/projects/:id/stages/:no，
-  //    這一段可以之後砍掉，或保留給其他舊頁面用。
+  // ---------- 舊版 stageupload（保留但強制導向新版，避免打錯 URL 404） ----------
   stageUpload: {
-    async getLast(projectId) {
-      return await apiFetch(
-        `/api/stageupload/${encodeURIComponent(projectId)}/last`,
-        { method: "GET" }
-      );
+    async getLast(projectId, stageId) {
+      console.warn("[DEPRECATED] api.stageUpload.getLast() 已棄用，請改用 api.projectStages.getLastFile(projectNo, stageNo)");
+      // 若你仍需要相容，請把 projectId 當 projectNo 使用，並要求呼叫端帶 stageId
+      if (stageId == null) throw new Error("stageUpload.getLast 需要 stageId（已改用 projectStages）");
+      return await api.projectStages.getLastFile(projectId, stageId);
     },
 
-    async upload({ projectId, stageId, file, extra = {} }) {
-      const form = new FormData();
-      form.append("file", file);
-      if (stageId != null) form.append("stageId", String(stageId));
-      Object.entries(extra).forEach(([k, v]) => form.append(k, String(v)));
-
-      return await apiFetch(
-        `/api/stageupload/${encodeURIComponent(projectId)}/upload`,
-        {
-          method: "POST",
-          body: form,
-          isMultipart: true,
-        }
-      );
+    async upload({ projectId, stageId, file }) {
+      console.warn("[DEPRECATED] api.stageUpload.upload() 已棄用，請改用 api.projectStages.uploadFiles(projectNo, stageNo, files)");
+      if (!file) throw new Error("stageUpload.upload 缺少 file");
+      if (stageId == null) throw new Error("stageUpload.upload 缺少 stageId");
+      return await api.projectStages.uploadFiles(projectId, stageId, [file]);
     },
   },
 

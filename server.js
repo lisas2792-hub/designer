@@ -456,10 +456,30 @@ app.get("/__routes_registry", (_req, res) => {
 // 同頁多路徑入口：/projects /reminders /password
 // ─────────────────────────────────────────────
 const HOME_HTML = path.join(PUBLIC_DIR, "home.html");
+
 function sendHomeHtml(_req, res) {
   res.set("Cache-Control", "no-store");
-  return res.sendFile(HOME_HTML);
+
+  try {
+    // Cloud Run 環境變數（已在 /api/version 使用同一套）
+    const buildId =
+      process.env.BUILD_ID ||
+      process.env.K_REVISION ||          // fallback：Cloud Run revision
+      process.env.GIT_SHA ||             // fallback：git sha
+      String(Date.now());                // fallback：避免卡快取
+
+    let html = fs.readFileSync(HOME_HTML, "utf8");
+
+    // 把 HTML 中所有 BUILD_ID 文字替換掉（ CSS/JS 都有用到）
+    html = html.replace(/BUILD_ID/g, String(buildId));
+
+    return res.type("html").send(html);
+  } catch (e) {
+    // fallback：讀檔失敗仍用原本方式避免全站掛掉
+    return res.sendFile(HOME_HTML);
+  }
 }
+
 app.get("/projects", sendHomeHtml);
 app.get("/reminders", sendHomeHtml);
 app.get("/password", sendHomeHtml);
