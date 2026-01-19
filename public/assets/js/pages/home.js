@@ -121,10 +121,12 @@ async function navigateToView(nextKey, { replace = false } = {}) {
 
     document.getElementById("accountName").textContent = me.username || me.name || "—";
 
-    const roleCode = (me.role_code || me.role || "").toString().trim();
-    const roleLabel = me.role_label || (roleCode === "admin" ? "系統管理員" : roleCode ? "一般會員" : "—");
+    // const roleCode = (me.role_code || me.role || "").toString().trim();
+    // const roleLabel = me.role_label || (roleCode === "admin" ? "系統管理員" : roleCode ? "設計師" : "—");
 
-    document.getElementById("accountRole").textContent = roleLabel;
+    // 後端已回傳 role_label：前端不要再寫死判斷
+    document.getElementById("accountRole").textContent = me.role_label || "—";
+
   } catch (err) {
     console.error("[boot] me failed:", err);
     window.location.href = "/login.html";

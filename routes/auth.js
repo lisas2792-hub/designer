@@ -9,6 +9,7 @@ const router = Router();
 const jwt = require("jsonwebtoken");
 const cookie = require("cookie"); // 只用來解析 Cookie header
 const { requireAuth } = require("../middleware/auth");
+const { attachUser } = require("../middleware/auth");
 
 // 環境旗標與共用 Cookie 設定建構函式（公網/正式環境用 HTTPS 才能跨網域）
 const IS_PROD = process.env.NODE_ENV === "production";
@@ -170,33 +171,23 @@ router.post("/logout", (_req, res) => {
 });
 
 /** 目前登入者資訊（由 JWT 解析來） */
-router.get("/me", async (req, res) => {
-  const c = req.headers.cookie ? cookie.parse(req.headers.cookie) : {};
-  const token = c.auth;
-  if (!token) return res.status(200).json({ ok: true, data: null });
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    const { rows } = await pool.query(
-      `SELECT u.id, u.username, r.code AS role_code
-        FROM "user" u
-        JOIN user_role r ON r.id = u.role_id
-        WHERE u.id = $1
-        LIMIT 1`,
-      [payload.id]
-    );
-    const u = rows[0];
-    if (!u) return res.status(200).json({ ok: true, data: null });
-
-    return res.json({
-      ok: true,
-      data: { id: String(u.id), username: u.username, role: u.role_code },
-    });
-  } catch {
+router.get("/me", attachUser, (req, res) => {
+  if (!req.user) {
     return res.status(200).json({ ok: true, data: null });
   }
-});
 
+  return res.json({
+    ok: true,
+    data: {
+      id: String(req.user.id),
+      username: req.user.username,
+      name: req.user.name || null,
+      role: req.user.role_code || req.user.role || null,
+      role_code: req.user.role_code || null,
+      role_label: req.user.role_label || null, 
+    },
+  });
+});
 
 /** 修改密碼 */
 router.post("/change-password", requireAuth, async (req, res) => {
